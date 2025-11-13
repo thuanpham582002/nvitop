@@ -41,6 +41,12 @@ from nvitop.api.utils import (
     timedelta2human,
 )
 
+# Optional Kubernetes integration
+try:
+    from nvitop.api import kubernetes
+except ImportError:
+    kubernetes = None
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable
@@ -192,6 +198,7 @@ class HostProcess(host.Process, ABC):
     _username: str | None
     _ident: tuple
     _lock: threading.RLock
+    _kubernetes_info: Any | None
 
     def __new__(cls, pid: int | None = None) -> Self:
         """Return the cached instance of :class:`HostProcess`."""
@@ -210,6 +217,7 @@ class HostProcess(host.Process, ABC):
 
             instance._super_gone = False
             instance._username = None
+            instance._kubernetes_info = None
             host.Process._init(instance, pid, True)
             try:
                 host.Process.cpu_percent(instance)
@@ -417,6 +425,65 @@ class HostProcess(host.Process, ABC):
                     finally:
                         self.cmdline.cache_deactivate(self)  # type: ignore[attr-defined]
                         self.running_time.cache_deactivate(self)  # type: ignore[attr-defined]
+
+    # Kubernetes integration methods
+    def _get_kubernetes_info(self):
+        """Get cached Kubernetes information for this process."""
+        if self._kubernetes_info is None and kubernetes is not None:
+            try:
+                self._kubernetes_info = kubernetes.get_kubernetes_info(self.pid)
+            except Exception:
+                self._kubernetes_info = kubernetes.KubernetesInfo(NA, NA, NA, NA, NA, NA, {})
+        return self._kubernetes_info
+
+    @auto_garbage_clean(fallback=NA)
+    def pod_name(self) -> str | NaType:
+        """Get the Kubernetes pod name if running in a pod."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().pod_name
+
+    @auto_garbage_clean(fallback=NA)
+    def pod_namespace(self) -> str | NaType:
+        """Get the Kubernetes pod namespace if running in a pod."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().pod_namespace
+
+    @auto_garbage_clean(fallback=NA)
+    def pod_uid(self) -> str | NaType:
+        """Get the Kubernetes pod UID if running in a pod."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().pod_uid
+
+    @auto_garbage_clean(fallback=NA)
+    def container_name(self) -> str | NaType:
+        """Get the container name if running in a container."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().container_name
+
+    @auto_garbage_clean(fallback=NA)
+    def container_id(self) -> str | NaType:
+        """Get the container ID if running in a container."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().container_id
+
+    @auto_garbage_clean(fallback=NA)
+    def node_name(self) -> str | NaType:
+        """Get the Kubernetes node name if running in a pod."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().node_name
+
+    @auto_garbage_clean(fallback=NA)
+    def pod_labels(self) -> dict[str, str] | NaType:
+        """Get the Kubernetes pod labels if running in a pod."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().pod_labels
 
     def as_snapshot(
         self,
@@ -1001,6 +1068,35 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
             gpu_encoder_utilization=self.gpu_encoder_utilization(),
             gpu_decoder_utilization=self.gpu_decoder_utilization(),
         )
+
+    # Kubernetes integration methods - delegate to host process
+    def pod_name(self) -> str | NaType:
+        """Get the Kubernetes pod name if running in a pod."""
+        return self.host.pod_name()
+
+    def pod_namespace(self) -> str | NaType:
+        """Get the Kubernetes pod namespace if running in a pod."""
+        return self.host.pod_namespace()
+
+    def pod_uid(self) -> str | NaType:
+        """Get the Kubernetes pod UID if running in a pod."""
+        return self.host.pod_uid()
+
+    def container_name(self) -> str | NaType:
+        """Get the container name if running in a container."""
+        return self.host.container_name()
+
+    def container_id(self) -> str | NaType:
+        """Get the container ID if running in a container."""
+        return self.host.container_id()
+
+    def node_name(self) -> str | NaType:
+        """Get the Kubernetes node name if running in a pod."""
+        return self.host.node_name()
+
+    def pod_labels(self) -> dict[str, str] | NaType:
+        """Get the Kubernetes pod labels if running in a pod."""
+        return self.host.pod_labels()
 
     @classmethod
     def take_snapshots(  # batched version of `as_snapshot`
