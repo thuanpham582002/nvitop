@@ -8,19 +8,22 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from nvitop.api import host
+
+try:
+    from typing import Self  # type: ignore
+except ImportError:
+    from typing_extensions import Self  # type: ignore
+
 from nvitop.api.utils import NA, NaType, memoize_when_activated
 
 
 __all__ = [
-    "KubernetesInfo",
-    "KubernetesClient",
-    "is_kubernetes_environment",
-    "extract_pod_from_pid",
-    "get_kubernetes_info",
-    "list_available_contexts",
-    "get_current_context",
-    "get_kubernetes_client",
+    'KubernetesClient',
+    'KubernetesInfo',
+    'extract_pod_from_pid',
+    'get_kubernetes_client',
+    'get_kubernetes_info',
+    'is_kubernetes_environment',
 ]
 
 
@@ -42,8 +45,6 @@ class KubernetesInfo:
 class KubernetesError(Exception):
     """Exception raised for Kubernetes-related errors."""
 
-    pass
-
 
 def is_kubernetes_environment() -> bool:
     """Check if the current process is running in a Kubernetes environment.
@@ -51,30 +52,30 @@ def is_kubernetes_environment() -> bool:
     Returns:
         True if running in Kubernetes, False otherwise.
     """
-    if os.getenv("KUBERNETES_SERVICE_HOST") is not None:
+    if os.getenv('KUBERNETES_SERVICE_HOST') is not None:
         return True
 
-    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    token_path = '/var/run/secrets/kubernetes.io/serviceaccount/token'
     if os.path.isfile(token_path):
         return True
 
     try:
-        if os.path.isfile("/proc/1/cgroup"):
-            with open("/proc/1/cgroup", "r") as f:
+        if os.path.isfile('/proc/1/cgroup'):
+            with open('/proc/1/cgroup') as f:
                 cgroup_content = f.read()
                 if (
-                    "docker" in cgroup_content
-                    or "containerd" in cgroup_content
-                    or "crio" in cgroup_content
+                    'docker' in cgroup_content
+                    or 'containerd' in cgroup_content
+                    or 'crio' in cgroup_content
                 ):
                     return True
-    except (OSError, IOError):
+    except OSError:
         pass
 
     return False
 
 
-def extract_pod_from_pid(pid: int) -> dict[str, str] | None:
+def extract_pod_from_pid(pid: int) -> dict[str, str | None] | None:
     """Extract pod and container information from process PID using /proc filesystem.
 
     Args:
@@ -84,48 +85,45 @@ def extract_pod_from_pid(pid: int) -> dict[str, str] | None:
         Dictionary containing pod info or None if not found.
     """
     try:
-        cgroup_path = f"/proc/{pid}/cgroup"
+        cgroup_path = f'/proc/{pid}/cgroup'
         if not os.path.isfile(cgroup_path):
             return None
 
         container_id = None
         pod_uid = None
-        with open(cgroup_path, "r") as f:
+        with open(cgroup_path) as f:
             for line in f:
                 line = line.strip()
-                if "::" in line:
-                    _, cgroup_path = line.split("::", 1)
+                if '::' in line:
+                    _, cgroup_path = line.split('::', 1)
                 else:
-                    parts = line.split(":")
+                    parts = line.split(':')
                     if len(parts) >= 3:
                         cgroup_path = parts[2]
 
-                if "kubepods" in cgroup_path:
+                if 'kubepods' in cgroup_path:
                     # Extract pod UID using improved regex
-                    pod_uid_pattern = r"pod([a-f0-9_-]+)\.slice"
+                    pod_uid_pattern = r'pod([a-f0-9_-]+)\.slice'
                     pod_match = re.search(pod_uid_pattern, cgroup_path)
                     if pod_match:
                         pod_uid = pod_match.group(1)
 
                     # Extract container ID using improved regex
-                    container_id_pattern = r"cri-[^-]+-([a-f0-9]{12,})"
+                    container_id_pattern = r'cri-[^-]+-([a-f0-9]{12,})'
                     container_match = re.search(container_id_pattern, cgroup_path)
                     if container_match:
                         container_id = container_match.group(1)
 
         if container_id is None:
             return None
-
-        pod_info = {
-            "container_id": container_id,
-            "pod_uid": pod_uid,
-            "pod_name": None,
-            "namespace": None,
+        return {
+            'container_id': container_id,
+            'pod_uid': pod_uid,
+            'pod_name': None,
+            'namespace': None,
         }
 
-        return pod_info
-
-    except (OSError, IOError, ValueError):
+    except (OSError, ValueError):
         return None
 
 
@@ -140,7 +138,7 @@ class KubernetesClient:
         kubeconfig_path: str | None = None,
         context: str | None = None,
         use_incluster_config: bool = True,
-    ) -> KubernetesClient:
+    ) -> Self:
         """Singleton pattern for Kubernetes client with configuration support."""
         if cls._instance is None:
             with cls._lock:
@@ -165,10 +163,10 @@ class KubernetesClient:
         self._context = context
         self._use_incluster_config = use_incluster_config
 
-        if not hasattr(self, "_initialized"):
+        if not hasattr(self, '_initialized'):
             self._initialized = True
             self._k8s_loaded = False
-            self._load_error = None
+            self._load_error: str | None = None
             self._setup_client()
 
     def _setup_client(self) -> None:
@@ -177,13 +175,14 @@ class KubernetesClient:
 
             if self._kubeconfig_path:
                 config.load_kube_config(
-                    config_file=self._kubeconfig_path, context=self._context
+                    config_file=self._kubeconfig_path,
+                    context=self._context,
                 )
             else:
-                load_kwargs = {"context": self._context} if self._context else {}
+                load_kwargs = {'context': self._context} if self._context else {}
                 env_paths = [
-                    os.getenv("KUBECONFIG"),
-                    os.path.expanduser("~/.kube/config"),
+                    os.getenv('KUBECONFIG'),
+                    os.path.expanduser('~/.kube/config'),
                 ]
 
                 for path in env_paths:
@@ -191,14 +190,12 @@ class KubernetesClient:
                         config.load_kube_config(config_file=path, **load_kwargs)
                         break
                 else:
-                    if self._use_incluster_config:
-                        config.load_config(**load_kwargs)
-                    elif not is_kubernetes_environment():
+                    if self._use_incluster_config or not is_kubernetes_environment():
                         config.load_config(**load_kwargs)
 
             self._k8s_loaded = True
 
-        except Exception as e:
+        except (ImportError, OSError, KeyError) as e:
             self._load_error = str(e)
             self._k8s_loaded = False
 
@@ -221,20 +218,17 @@ class KubernetesClient:
             from kubernetes import config
 
             if kubeconfig_path is None:
-                kubeconfig_path = (
-                    os.getenv("KUBECONFIG")
-                    or os.path.expanduser("~/.kube/config")
-                )
+                kubeconfig_path = os.getenv('KUBECONFIG') or os.path.expanduser('~/.kube/config')
 
             if not os.path.isfile(kubeconfig_path):
                 return []
 
             contexts, _ = config.list_kube_config_contexts(config_file=kubeconfig_path)
-            return [ctx["name"] for ctx in contexts]
+            return [ctx['name'] for ctx in contexts]
 
         except ImportError:
             return []
-        except Exception:
+        except (OSError, KeyError, ValueError):
             return []
 
     @staticmethod
@@ -251,22 +245,19 @@ class KubernetesClient:
             from kubernetes import config
 
             if kubeconfig_path is None:
-                kubeconfig_path = (
-                    os.getenv("KUBECONFIG")
-                    or os.path.expanduser("~/.kube/config")
-                )
+                kubeconfig_path = os.getenv('KUBECONFIG') or os.path.expanduser('~/.kube/config')
 
             if not os.path.isfile(kubeconfig_path):
                 return None
 
             _, current_context = config.list_kube_config_contexts(
-                config_file=kubeconfig_path
+                config_file=kubeconfig_path,
             )
-            return current_context.get("name") if current_context else None
+            return current_context.get('name') if current_context else None
 
         except ImportError:
             return None
-        except Exception:
+        except (OSError, KeyError, ValueError):
             return None
 
     def _extract_nvidia_gpu_resources(
@@ -285,38 +276,38 @@ class KubernetesClient:
         Returns:
             Tuple of (gpu_requests, gpu_limits) as integers.
         """
-        containers = pod_spec.get("containers", [])
+        containers = pod_spec.get('containers', [])
 
         if container_id:
             pass
 
         if container_name:
-            containers = [c for c in containers if c.get("name") == container_name]
+            containers = [c for c in containers if c.get('name') == container_name]
 
         container = containers[0] if containers else {}
-        resources = container.get("resources", {})
+        resources = container.get('resources', {})
 
-        requests = resources.get("requests", {})
-        limits = resources.get("limits", {})
+        requests = resources.get('requests', {})
+        limits = resources.get('limits', {})
 
         gpu_requests = 0
         gpu_limits = 0
 
-        if "nvidia.com/gpu" in requests:
+        if 'nvidia.com/gpu' in requests:
             try:
-                gpu_requests = int(requests["nvidia.com/gpu"])
+                gpu_requests = int(requests['nvidia.com/gpu'])
             except (ValueError, TypeError):
                 gpu_requests = 0
 
-        if "nvidia.com/gpu" in limits:
+        if 'nvidia.com/gpu' in limits:
             try:
-                gpu_limits = int(limits["nvidia.com/gpu"])
+                gpu_limits = int(limits['nvidia.com/gpu'])
             except (ValueError, TypeError):
                 gpu_limits = 0
 
         return gpu_requests, gpu_limits
 
-    def _find_container_name_by_id(self, pod, container_id: str) -> str | None:
+    def _find_container_name_by_id(self, pod: Any, container_id: str) -> str | None:
         """Find container name by container ID using pod status information.
 
         Args:
@@ -327,18 +318,12 @@ class KubernetesClient:
             Container name if found, None otherwise.
         """
         try:
-            if (
-                hasattr(pod.status, "container_statuses")
-                and pod.status.container_statuses
-            ):
+            if hasattr(pod.status, 'container_statuses') and pod.status.container_statuses:
                 for container_status in pod.status.container_statuses:
-                    if (
-                        hasattr(container_status, "container_id")
-                        and container_status.container_id
-                    ):
+                    if hasattr(container_status, 'container_id') and container_status.container_id:
                         k8s_container_id = container_status.container_id
-                        if "://" in k8s_container_id:
-                            k8s_container_id = k8s_container_id.split("://", 1)[1]
+                        if '://' in k8s_container_id:
+                            k8s_container_id = k8s_container_id.split('://', 1)[1]
 
                         if (
                             k8s_container_id == container_id
@@ -346,18 +331,18 @@ class KubernetesClient:
                             or container_id.startswith(k8s_container_id[:12])
                         ):
                             return (
-                                container_status.name
-                                if hasattr(container_status, "name")
-                                else None
+                                container_status.name if hasattr(container_status, 'name') else None
                             )
-        except Exception:
+        except (AttributeError, TypeError, KeyError):
             pass
 
         return None
 
     @memoize_when_activated
     def get_pod_info(
-        self, pod_name: str, namespace: str | None = None
+        self,
+        pod_name: str,
+        namespace: str | None = None,
     ) -> KubernetesInfo:
         """Get pod information using official Kubernetes client.
 
@@ -376,14 +361,15 @@ class KubernetesClient:
 
             api = CoreV1Api()
             pod = api.read_namespaced_pod(
-                name=pod_name, namespace=namespace or "default"
+                name=pod_name,
+                namespace=namespace or 'default',
             )
 
             metadata = pod.metadata
             spec = pod.spec
 
             gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
-                spec.to_dict()
+                spec.to_dict(),
             )
 
             return KubernetesInfo(
@@ -398,7 +384,7 @@ class KubernetesClient:
                 nvidia_gpu_limits=gpu_limits,
             )
 
-        except Exception:
+        except (ImportError, OSError, KeyError, ValueError):
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
     @memoize_when_activated
@@ -419,7 +405,7 @@ class KubernetesClient:
 
             api = CoreV1Api()
 
-            common_namespaces = ["default", "kube-system", "kube-public"]
+            common_namespaces = ['default', 'kube-system', 'kube-public']
 
             for namespace in common_namespaces:
                 try:
@@ -428,8 +414,8 @@ class KubernetesClient:
                         # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
                         k8s_pod_uid = pod_uid.replace('_', '-')
                         if pod.metadata.uid == k8s_pod_uid:
-                            gpu_requests, gpu_limits = (
-                                self._extract_nvidia_gpu_resources(pod.spec.to_dict())
+                            gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
+                                pod.spec.to_dict(),
                             )
 
                             return KubernetesInfo(
@@ -443,7 +429,7 @@ class KubernetesClient:
                                 nvidia_gpu_requests=gpu_requests,
                                 nvidia_gpu_limits=gpu_limits,
                             )
-                except Exception:
+                except (ImportError, OSError, KeyError, ValueError):
                     continue
 
             try:
@@ -460,10 +446,8 @@ class KubernetesClient:
                             # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
                             k8s_pod_uid = pod_uid.replace('_', '-')
                             if pod.metadata.uid == k8s_pod_uid:
-                                gpu_requests, gpu_limits = (
-                                    self._extract_nvidia_gpu_resources(
-                                        pod.spec.to_dict()
-                                    )
+                                gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
+                                    pod.spec.to_dict(),
                                 )
 
                                 return KubernetesInfo(
@@ -477,14 +461,14 @@ class KubernetesClient:
                                     nvidia_gpu_requests=gpu_requests,
                                     nvidia_gpu_limits=gpu_limits,
                                 )
-                    except Exception:
+                    except (ImportError, OSError, KeyError, ValueError):
                         continue
-            except Exception:
+            except (ImportError, OSError, KeyError, ValueError):
                 pods = api.list_pod_for_all_namespaces()
                 for pod in pods.items:
                     if pod.metadata.uid == pod_uid:
                         gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
-                            pod.spec.to_dict()
+                            pod.spec.to_dict(),
                         )
 
                         return KubernetesInfo(
@@ -501,7 +485,7 @@ class KubernetesClient:
 
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
-        except Exception:
+        except (ImportError, OSError, KeyError, ValueError):
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
 
@@ -581,7 +565,7 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
     if pod_info is None:
         return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
-    container_id = pod_info.get("container_id")
+    container_id = pod_info.get('container_id')
 
     if container_id:
         with _cache_lock:
@@ -589,8 +573,9 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
                 return _container_pod_cache[container_id]
 
     client = _get_kubernetes_client()
-    if pod_info.get("pod_uid") and client.is_available:
-        k8s_info = client.get_pod_by_uid(pod_info["pod_uid"])
+    pod_uid = pod_info.get('pod_uid')
+    if pod_uid and client.is_available:
+        k8s_info = client.get_pod_by_uid(pod_uid)
 
         if container_id and container_id is not NA and k8s_info.pod_name is not NA:
             try:
@@ -598,13 +583,15 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
 
                 api = CoreV1Api()
                 pod = api.read_namespaced_pod(
-                    name=k8s_info.pod_name, namespace=k8s_info.pod_namespace
+                    name=k8s_info.pod_name,
+                    namespace=k8s_info.pod_namespace,
                 )
 
                 container_name = client._find_container_name_by_id(pod, container_id)
                 if container_name:
                     gpu_requests, gpu_limits = client._extract_nvidia_gpu_resources(
-                        pod.spec.to_dict(), container_name=container_name
+                        pod.spec.to_dict(),
+                        container_name=container_name,
                     )
                     k8s_info.container_name = container_name
                     k8s_info.nvidia_gpu_requests = gpu_requests
@@ -614,7 +601,7 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
                     with _cache_lock:
                         _container_pod_cache[container_id] = k8s_info
 
-            except Exception:
+            except (ImportError, OSError, KeyError, ValueError):
                 pass
 
         if k8s_info.container_id is NA:
@@ -623,9 +610,9 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
         return k8s_info
 
     basic_info = KubernetesInfo(
-        pod_name=pod_info.get("pod_name", NA),
-        pod_namespace=pod_info.get("namespace", NA),
-        pod_uid=pod_info.get("pod_uid", NA),
+        pod_name=pod_info.get('pod_name') or NA,
+        pod_namespace=pod_info.get('namespace') or NA,
+        pod_uid=pod_info.get('pod_uid') or NA,
         container_name=NA,
         container_id=container_id or NA,
         node_name=NA,

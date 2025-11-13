@@ -392,7 +392,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
             time.sleep(self.SNAPSHOT_INTERVAL)
 
     def header_lines(self) -> list[str]:
-        pod_headers = ['POD'] + self.host_headers
+        pod_headers = ['POD', *self.host_headers]
         header = [
             '╒' + '═' * (self.width - 2) + '╕',
             '│ {} │'.format('Processes:'.ljust(self.width - 4)),

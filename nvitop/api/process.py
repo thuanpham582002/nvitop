@@ -41,11 +41,22 @@ from nvitop.api.utils import (
     timedelta2human,
 )
 
+
 # Optional Kubernetes integration
 try:
     from nvitop.api import kubernetes
 except ImportError:
     kubernetes = None
+
+# Make KubernetesInfo available for type checking and runtime
+if TYPE_CHECKING:
+    try:
+        from nvitop.api.kubernetes import KubernetesInfo
+    except ImportError:
+        KubernetesInfo = None  # type: ignore
+else:
+    # For runtime, import when needed
+    KubernetesInfo = None  # type: ignore
 
 
 if TYPE_CHECKING:
@@ -55,63 +66,56 @@ if TYPE_CHECKING:
     from nvitop.api.device import Device
 
 
-__all__ = ["GpuProcess", "HostProcess", "command_join"]
+__all__ = ['GpuProcess', 'HostProcess', 'command_join']
 
 
 if host.POSIX:
 
     def add_quotes(s: str) -> str:
         """Return a shell-escaped version of the string."""
-        if s == "":
+        if s == '':
             return '""'
-        if "$" not in s and "\\" not in s and "\n" not in s:
-            if " " not in s:
+        if '$' not in s and '\\' not in s and '\n' not in s:
+            if ' ' not in s:
                 return s
             if '"' not in s:
                 return f'"{s}"'
-        if "'" not in s and "\n" not in s:
+        if "'" not in s and '\n' not in s:
             return f"'{s}'"
         return '"{}"'.format(
-            s.replace("\\", r"\\")
-            .replace('"', r"\"")
-            .replace("$", r"\$")
-            .replace("\n", r"\n"),
+            s.replace('\\', r'\\').replace('"', r'\"').replace('$', r'\$').replace('\n', r'\n'),
         )
 
 elif host.WINDOWS:
 
     def add_quotes(s: str) -> str:
         """Return a shell-escaped version of the string."""
-        if s == "":
+        if s == '':
             return '""'
-        if "%" not in s and "^" not in s and "\n" not in s:
-            if " " not in s:
+        if '%' not in s and '^' not in s and '\n' not in s:
+            if ' ' not in s:
                 return s
             if '"' not in s:
                 return f'"{s}"'
         return '"{}"'.format(
-            s.replace("^", "^^")
-            .replace('"', '^"')
-            .replace("%", "^%")
-            .replace("\n", r"\n"),
+            s.replace('^', '^^').replace('"', '^"').replace('%', '^%').replace('\n', r'\n'),
         )
 
 else:
 
     def add_quotes(s: str) -> str:
         """Return a shell-escaped version of the string."""
-        return '"{}"'.format(s.replace("\n", r"\n"))
+        return '"{}"'.format(s.replace('\n', r'\n'))
 
 
 def command_join(cmdline: list[str]) -> str:
     """Return a shell-escaped string from command line arguments."""
     if len(cmdline) == 1 and not (
         # May be modified by `setproctitle`
-        os.path.isfile(cmdline[0])
-        and os.path.isabs(cmdline[0])
+        os.path.isfile(cmdline[0]) and os.path.isabs(cmdline[0])
     ):
         return cmdline[0]
-    return " ".join(map(add_quotes, cmdline))
+    return ' '.join(map(add_quotes, cmdline))
 
 
 _RAISE = object()
@@ -145,14 +149,14 @@ def auto_garbage_clean(
                     pass
                 # See also `GpuProcess.failsafe`
                 if fallback is _RAISE or not getattr(
-                    _USE_FALLBACK_WHEN_RAISE, "value", False
+                    _USE_FALLBACK_WHEN_RAISE,
+                    'value',
+                    False,
                 ):
                     raise
                 if isinstance(fallback, tuple):
-                    if isinstance(ex, host.AccessDenied) and fallback == (
-                        "No Such Process",
-                    ):
-                        return ["No Permissions"]
+                    if isinstance(ex, host.AccessDenied) and fallback == ('No Such Process',):
+                        return ['No Permissions']
                     return list(fallback)
                 return fallback
 
@@ -254,7 +258,7 @@ class HostProcess(host.Process, ABC):
 
     def __repr__(self) -> str:
         """Return a string representation of the process."""
-        return super().__repr__().replace(f"{self.__class__.__module__}.", "", 1)
+        return super().__repr__().replace(f'{self.__class__.__module__}.', '', 1)
 
     def __reduce__(self) -> tuple[type[HostProcess], tuple[int]]:
         """Return state information for pickling."""
@@ -273,11 +277,9 @@ class HostProcess(host.Process, ABC):
                 host.AccessDenied:
                     If the user do not have read privilege to the process' status file.
             """
-            if (
-                self._username is None
-            ):  # pylint: disable=access-member-before-definition
+            if self._username is None:  # pylint: disable=access-member-before-definition
                 self._username = (  # pylint: disable=attribute-defined-outside-init
-                    super().username().split("\\")[-1]
+                    super().username().split('\\')[-1]
                 )
             return self._username
 
@@ -294,9 +296,7 @@ class HostProcess(host.Process, ABC):
                 host.AccessDenied:
                     If the user do not have read privilege to the process' status file.
             """
-            if (
-                self._username is None
-            ):  # pylint: disable=access-member-before-definition
+            if self._username is None:  # pylint: disable=access-member-before-definition
                 self._username = (  # pylint: disable=attribute-defined-outside-init
                     super().username()
                 )
@@ -314,7 +314,7 @@ class HostProcess(host.Process, ABC):
         """
         cmdline = super().cmdline()
         if len(cmdline) > 1:
-            cmdline = "\0".join(cmdline).rstrip("\0").split("\0")
+            cmdline = '\0'.join(cmdline).rstrip('\0').split('\0')
         return cmdline
 
     def command(self) -> str:
@@ -339,7 +339,7 @@ class HostProcess(host.Process, ABC):
                 If the user do not have read privilege to the process' status file.
         """
         return datetime.datetime.now() - datetime.datetime.fromtimestamp(
-            self.create_time()
+            self.create_time(),
         )
 
     def running_time_human(self) -> str:
@@ -428,7 +428,7 @@ class HostProcess(host.Process, ABC):
             ...     p.create_time()  # return cached value
         """  # pylint: disable=line-too-long
         with self._lock:
-            if hasattr(self, "_cache"):
+            if hasattr(self, '_cache'):
                 yield
             else:
                 with super().oneshot():
@@ -445,10 +445,20 @@ class HostProcess(host.Process, ABC):
 
     # Kubernetes integration methods
     @memoize_when_activated
-    def _get_kubernetes_info(self):
+    def _get_kubernetes_info(self) -> KubernetesInfo:
         """Get cached Kubernetes information for this process."""
         if kubernetes is None:
-            return kubernetes.KubernetesInfo(
+            # Import KubernetesInfo dynamically when needed
+            try:
+                from nvitop.api.kubernetes import KubernetesInfo
+            except ImportError:
+                # Fallback definition if import fails
+                def kubernetes_info_fallback(**kwargs: Any) -> Any:
+                    return type('KubernetesInfo', (), kwargs)()
+
+                KubernetesInfo = kubernetes_info_fallback
+
+            return KubernetesInfo(
                 pod_name=NA,
                 pod_namespace=NA,
                 pod_uid=NA,
@@ -462,7 +472,7 @@ class HostProcess(host.Process, ABC):
 
         try:
             return kubernetes.get_kubernetes_info(self.pid)
-        except (ImportError, kubernetes.KubernetesError, OSError, IOError):
+        except (ImportError, kubernetes.KubernetesError, OSError):
             return kubernetes.KubernetesInfo(
                 pod_name=NA,
                 pod_namespace=NA,
@@ -548,7 +558,7 @@ class HostProcess(host.Process, ABC):
             attributes = self.as_dict(attrs=attrs, ad_value=ad_value)
 
             if attrs is None:
-                for attr in ("command", "running_time", "running_time_human"):
+                for attr in ('command', 'running_time', 'running_time_human'):
                     try:
                         attributes[attr] = getattr(self, attr)()
                     except (host.AccessDenied, host.ZombieProcess):  # noqa: PERF203
@@ -568,9 +578,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
     """
 
     INSTANCE_LOCK: threading.RLock = threading.RLock()
-    INSTANCES: WeakValueDictionary[tuple[int, Device], GpuProcess] = (
-        WeakValueDictionary()
-    )
+    INSTANCES: WeakValueDictionary[tuple[int, Device], GpuProcess] = WeakValueDictionary()
 
     _pid: int
     _host: HostProcess
@@ -628,20 +636,18 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         type: str | NaType | None = None,  # pylint: disable=redefined-builtin
     ) -> None:
         """Initialize the instance returned by :meth:`__new__()`."""
-        if gpu_memory is None and not hasattr(self, "_gpu_memory"):
+        if gpu_memory is None and not hasattr(self, '_gpu_memory'):
             gpu_memory = NA
         if gpu_memory is not None:
             self.set_gpu_memory(gpu_memory)
 
-        if type is None and not hasattr(self, "_type"):
+        if type is None and not hasattr(self, '_type'):
             type = NA
         if type is not None:
             self.type = type
 
         if gpu_instance_id is not None and compute_instance_id is not None:
-            self._gpu_instance_id = (
-                gpu_instance_id if gpu_instance_id != UINT_MAX else NA
-            )
+            self._gpu_instance_id = gpu_instance_id if gpu_instance_id != UINT_MAX else NA
             self._compute_instance_id = (
                 compute_instance_id if compute_instance_id != UINT_MAX else NA
             )
@@ -651,13 +657,13 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         else:
             self._gpu_instance_id = self._compute_instance_id = NA
 
-        for util in ("sm", "memory", "encoder", "decoder"):
-            if not hasattr(self, f"_gpu_{util}_utilization"):
-                setattr(self, f"_gpu_{util}_utilization", NA)
+        for util in ('sm', 'memory', 'encoder', 'decoder'):
+            if not hasattr(self, f'_gpu_{util}_utilization'):
+                setattr(self, f'_gpu_{util}_utilization', NA)
 
     def __repr__(self) -> str:
         """Return a string representation of the GPU process."""
-        return "{}(pid={}, gpu_memory={}, type={}, device={}, host={})".format(  # noqa: UP032
+        return '{}(pid={}, gpu_memory={}, type={}, device={}, host={})'.format(  # noqa: UP032
             self.__class__.__name__,
             self.pid,
             self.gpu_memory_human(),
@@ -676,7 +682,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         """Return a hash value of the GPU process."""
         if self._hash is None:  # pylint: disable=access-member-before-definition
             self._hash = hash(
-                self._ident
+                self._ident,
             )  # pylint: disable=attribute-defined-outside-init
         return self._hash
 
@@ -694,7 +700,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         try:
             return super().__getattr__(name)  # type: ignore[misc]
         except AttributeError:
-            if name == "_cache":
+            if name == '_cache':
                 raise
             attribute = getattr(self.host, name)
             if isinstance(attribute, FunctionType):
@@ -766,7 +772,8 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         memory_total = self.device.memory_total()
         gpu_memory_percent = NA
         if libnvml.nvmlCheckReturn(memory_used, int) and libnvml.nvmlCheckReturn(
-            memory_total, int
+            memory_total,
+            int,
         ):
             gpu_memory_percent = round(100.0 * memory_used / memory_total, 1)  # type: ignore[assignment]
         self._gpu_memory_percent = gpu_memory_percent
@@ -821,12 +828,12 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
 
     @type.setter
     def type(self, value: str | NaType) -> None:
-        if "C" in value and "G" in value:
-            self._type = "C+G"
-        elif "C" in value:
-            self._type = "C"
-        elif "G" in value:
-            self._type = "G"
+        if 'C' in value and 'G' in value:
+            self._type = 'C+G'
+        elif 'C' in value:
+            self._type = 'C'
+        elif 'G' in value:
+            self._type = 'G'
         else:
             self._type = NA
 
@@ -835,7 +842,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         """Return whether this process is running."""
         return self.host.is_running()
 
-    @auto_garbage_clean(fallback="terminated")
+    @auto_garbage_clean(fallback='terminated')
     def status(self) -> str:
         """The process current status.
 
@@ -935,9 +942,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
             manager :meth:`GpuProcess.failsafe`. See also :meth:`take_snapshots` and :meth:`failsafe`.
         """
         if self._username is None:  # pylint: disable=access-member-before-definition
-            self._username = (
-                self.host.username()
-            )  # pylint: disable=attribute-defined-outside-init
+            self._username = self.host.username()  # pylint: disable=attribute-defined-outside-init
         return self._username
 
     @auto_garbage_clean(fallback=NA)
@@ -1024,7 +1029,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
     rss_memory = host_memory  # in bytes
 
     # For `AccessDenied` error the fallback value is `['No Permissions']`
-    @auto_garbage_clean(fallback=("No Such Process",))
+    @auto_garbage_clean(fallback=('No Such Process',))
     def cmdline(self) -> list[str]:
         """The command line this process has been called with.
 
@@ -1040,7 +1045,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         """
         cmdline = self.host.cmdline()
         if len(cmdline) == 0 and not self._gone:
-            cmdline = ["Zombie Process"]
+            cmdline = ['Zombie Process']
         return cmdline
 
     def command(self) -> str:
@@ -1187,8 +1192,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         )
         with context():
             return [
-                process.as_snapshot(host_process_snapshot_cache=cache)
-                for process in gpu_processes
+                process.as_snapshot(host_process_snapshot_cache=cache) for process in gpu_processes
             ]
 
     @classmethod
@@ -1216,7 +1220,7 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
         """  # pylint: disable=line-too-long
         global _USE_FALLBACK_WHEN_RAISE  # pylint: disable=global-statement,global-variable-not-assigned
 
-        prev_value = getattr(_USE_FALLBACK_WHEN_RAISE, "value", False)
+        prev_value = getattr(_USE_FALLBACK_WHEN_RAISE, 'value', False)
         try:
             _USE_FALLBACK_WHEN_RAISE.value = True
             yield

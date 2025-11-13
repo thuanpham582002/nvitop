@@ -209,7 +209,7 @@ def main() -> int:  # pylint: disable=too-many-locals,too-many-statements
         hostname=args.hostname,
         interval=args.interval,
         kubernetes_enabled=args.kubernetes,
-        kubernetes_cache_ttl=args.kubernetes_cache_ttl
+        kubernetes_cache_ttl=args.kubernetes_cache_ttl,
     )
 
     if args.kubernetes:

@@ -101,8 +101,8 @@ messages-control.disable = [
     "duplicate-code",
     "wrong-import-order",
 ]
-spelling.spelling-dict = "en_US"
-spelling.spelling-private-dict-file = "docs/source/spelling_wordlist.txt"
+# spelling.spelling-dict = "en_US"  # Disabled due to missing dictionary
+# spelling.spelling-private-dict-file = "docs/source/spelling_wordlist.txt"
 
 [tool.codespell]
 ignore-words = "docs/source/spelling_wordlist.txt"
