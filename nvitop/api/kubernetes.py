@@ -104,7 +104,7 @@ def extract_pod_from_pid(pid: int) -> dict[str, str] | None:
 
                 if "kubepods" in cgroup_path:
                     # Extract pod UID using improved regex
-                    pod_uid_pattern = r"pod([a-f0-9-]+)"
+                    pod_uid_pattern = r"pod([a-f0-9_-]+)\.slice"
                     pod_match = re.search(pod_uid_pattern, cgroup_path)
                     if pod_match:
                         pod_uid = pod_match.group(1)
@@ -427,7 +427,9 @@ class KubernetesClient:
                 try:
                     pods = api.list_namespaced_pod(namespace=namespace)
                     for pod in pods.items:
-                        if pod.metadata.uid == pod_uid:
+                        # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
+                        k8s_pod_uid = pod_uid.replace('_', '-')
+                        if pod.metadata.uid == k8s_pod_uid:
                             gpu_requests, gpu_limits = (
                                 self._extract_nvidia_gpu_resources(pod.spec.to_dict())
                             )
@@ -457,7 +459,9 @@ class KubernetesClient:
                     try:
                         pods = api.list_namespaced_pod(namespace=ns.metadata.name)
                         for pod in pods.items:
-                            if pod.metadata.uid == pod_uid:
+                            # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
+                            k8s_pod_uid = pod_uid.replace('_', '-')
+                            if pod.metadata.uid == k8s_pod_uid:
                                 gpu_requests, gpu_limits = (
                                     self._extract_nvidia_gpu_resources(
                                         pod.spec.to_dict()
