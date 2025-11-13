@@ -45,18 +45,14 @@ from nvitop.api.utils import (
 # Optional Kubernetes integration
 try:
     from nvitop.api import kubernetes
+    from nvitop.api.kubernetes import KubernetesInfo
 except ImportError:
-    kubernetes = None
+    kubernetes = None  # type: ignore[assignment]
 
-# Make KubernetesInfo available for type checking and runtime
-if TYPE_CHECKING:
-    try:
-        from nvitop.api.kubernetes import KubernetesInfo
-    except ImportError:
-        KubernetesInfo = None  # type: ignore
-else:
-    # For runtime, import when needed
-    KubernetesInfo = None  # type: ignore
+    def kubernetes_info_fallback(**kwargs: Any) -> Any:
+        return type('KubernetesInfo', (), kwargs)()
+
+    KubernetesInfo = kubernetes_info_fallback  # type: ignore[misc, assignment]
 
 
 if TYPE_CHECKING:
@@ -447,105 +443,65 @@ class HostProcess(host.Process, ABC):
     @memoize_when_activated
     def _get_kubernetes_info(self) -> KubernetesInfo:
         """Get cached Kubernetes information for this process."""
-        if kubernetes is None:
-            # Import KubernetesInfo dynamically when needed
+        if kubernetes is not None:
             try:
-                from nvitop.api.kubernetes import KubernetesInfo
-            except ImportError:
-                # Fallback definition if import fails
-                def kubernetes_info_fallback(**kwargs: Any) -> Any:
-                    return type('KubernetesInfo', (), kwargs)()
+                return kubernetes.get_kubernetes_info(self.pid)
+            except (ImportError, kubernetes.KubernetesError, OSError):
+                pass
 
-                KubernetesInfo = kubernetes_info_fallback
-
-            return KubernetesInfo(
-                pod_name=NA,
-                pod_namespace=NA,
-                pod_uid=NA,
-                container_name=NA,
-                container_id=NA,
-                node_name=NA,
-                pod_labels={},
-                nvidia_gpu_requests=NA,
-                nvidia_gpu_limits=NA,
-            )
-
-        try:
-            return kubernetes.get_kubernetes_info(self.pid)
-        except (ImportError, kubernetes.KubernetesError, OSError):
-            return kubernetes.KubernetesInfo(
-                pod_name=NA,
-                pod_namespace=NA,
-                pod_uid=NA,
-                container_name=NA,
-                container_id=NA,
-                node_name=NA,
-                pod_labels={},
-                nvidia_gpu_requests=NA,
-                nvidia_gpu_limits=NA,
-            )
+        return KubernetesInfo(
+            pod_name=NA,
+            pod_namespace=NA,
+            pod_uid=NA,
+            container_name=NA,
+            container_id=NA,
+            node_name=NA,
+            metadata={},
+        )
 
     @auto_garbage_clean(fallback=NA)
     def pod_name(self) -> str | NaType:
         """Get the Kubernetes pod name if running in a pod."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().pod_name
 
     @auto_garbage_clean(fallback=NA)
     def pod_namespace(self) -> str | NaType:
         """Get the Kubernetes pod namespace if running in a pod."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().pod_namespace
 
     @auto_garbage_clean(fallback=NA)
     def pod_uid(self) -> str | NaType:
         """Get the Kubernetes pod UID if running in a pod."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().pod_uid
 
     @auto_garbage_clean(fallback=NA)
     def container_name(self) -> str | NaType:
         """Get the container name if running in a container."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().container_name
 
     @auto_garbage_clean(fallback=NA)
     def container_id(self) -> str | NaType:
         """Get the container ID if running in a container."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().container_id
 
     @auto_garbage_clean(fallback=NA)
     def node_name(self) -> str | NaType:
         """Get the Kubernetes node name if running in a pod."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().node_name
 
     @auto_garbage_clean(fallback=NA)
     def pod_labels(self) -> dict[str, str] | NaType:
         """Get the Kubernetes pod labels if running in a pod."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().pod_labels
 
     @auto_garbage_clean(fallback=NA)
     def nvidia_gpu_requests(self) -> int | NaType:
         """Get the number of NVIDIA GPUs requested by this process's container."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().nvidia_gpu_requests
 
     @auto_garbage_clean(fallback=NA)
     def nvidia_gpu_limits(self) -> int | NaType:
         """Get the number of NVIDIA GPUs limited to this process's container."""
-        if kubernetes is None:
-            return NA
         return self._get_kubernetes_info().nvidia_gpu_limits
 
     def as_snapshot(
