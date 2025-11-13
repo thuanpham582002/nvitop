@@ -485,6 +485,20 @@ class HostProcess(host.Process, ABC):
             return NA
         return self._get_kubernetes_info().pod_labels
 
+    @auto_garbage_clean(fallback=NA)
+    def nvidia_gpu_requests(self) -> int | NaType:
+        """Get the number of NVIDIA GPUs requested by this process's container."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().nvidia_gpu_requests
+
+    @auto_garbage_clean(fallback=NA)
+    def nvidia_gpu_limits(self) -> int | NaType:
+        """Get the number of NVIDIA GPUs limited to this process's container."""
+        if kubernetes is None:
+            return NA
+        return self._get_kubernetes_info().nvidia_gpu_limits
+
     def as_snapshot(
         self,
         attrs: Iterable[str] | None = None,
@@ -1097,6 +1111,14 @@ class GpuProcess:  # pylint: disable=too-many-instance-attributes,too-many-publi
     def pod_labels(self) -> dict[str, str] | NaType:
         """Get the Kubernetes pod labels if running in a pod."""
         return self.host.pod_labels()
+
+    def nvidia_gpu_requests(self) -> int | NaType:
+        """Get the number of NVIDIA GPUs requested by this process's container."""
+        return self.host.nvidia_gpu_requests()
+
+    def nvidia_gpu_limits(self) -> int | NaType:
+        """Get the number of NVIDIA GPUs limited to this process's container."""
+        return self.host.nvidia_gpu_limits()
 
     @classmethod
     def take_snapshots(  # batched version of `as_snapshot`

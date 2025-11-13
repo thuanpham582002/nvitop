@@ -47,6 +47,8 @@ class KubernetesInfo:
     container_id: str | NaType
     node_name: str | NaType
     pod_labels: dict[str, str] | NaType
+    nvidia_gpu_requests: int | NaType
+    nvidia_gpu_limits: int | NaType
 
 
 class KubernetesError(Exception):
@@ -196,6 +198,46 @@ class KubernetesClient:
                 self._namespace is not None and
                 self._api_host is not None)
 
+    def _extract_nvidia_gpu_resources(self, pod_spec: dict, container_name: str | None = None) -> tuple[int, int]:
+        """Extract NVIDIA GPU resources from pod specification.
+
+        Args:
+            pod_spec: Pod specification dictionary from Kubernetes API.
+            container_name: Specific container name to extract from (if None, uses first container).
+
+        Returns:
+            Tuple of (gpu_requests, gpu_limits) as integers.
+        """
+        # Find the container
+        containers = pod_spec.get('containers', [])
+        if container_name:
+            containers = [c for c in containers if c.get('name') == container_name]
+
+        container = containers[0] if containers else {}
+        resources = container.get('resources', {})
+
+        # Extract NVIDIA GPU requests and limits
+        requests = resources.get('requests', {})
+        limits = resources.get('limits', {})
+
+        gpu_requests = 0
+        gpu_limits = 0
+
+        # Parse nvidia.com/gpu values
+        if 'nvidia.com/gpu' in requests:
+            try:
+                gpu_requests = int(requests['nvidia.com/gpu'])
+            except (ValueError, TypeError):
+                gpu_requests = 0
+
+        if 'nvidia.com/gpu' in limits:
+            try:
+                gpu_limits = int(limits['nvidia.com/gpu'])
+            except (ValueError, TypeError):
+                gpu_limits = 0
+
+        return gpu_requests, gpu_limits
+
     @ttl_cache(ttl=60)  # Cache for 60 seconds
     def get_pod_info(self, pod_name: str, namespace: str | None = None) -> KubernetesInfo:
         """Get pod information from Kubernetes API.
@@ -229,6 +271,9 @@ class KubernetesClient:
             metadata = pod_data.get('metadata', {})
             spec = pod_data.get('spec', {})
 
+            # Extract NVIDIA GPU resources
+            gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(spec)
+
             return KubernetesInfo(
                 pod_name=metadata.get('name', NA),
                 pod_namespace=metadata.get('namespace', NA),
@@ -236,12 +281,14 @@ class KubernetesClient:
                 container_name=NA,  # Would need additional logic to determine container
                 container_id=NA,
                 node_name=spec.get('nodeName', NA),
-                pod_labels=metadata.get('labels', NA) or {}
+                pod_labels=metadata.get('labels', NA) or {},
+                nvidia_gpu_requests=gpu_requests,
+                nvidia_gpu_limits=gpu_limits
             )
 
         except Exception:
             # Return NA values on any error
-            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
     @ttl_cache(ttl=60)  # Cache for 60 seconds
     def get_pod_by_uid(self, pod_uid: str) -> KubernetesInfo:
@@ -254,7 +301,7 @@ class KubernetesClient:
             KubernetesInfo object with pod details.
         """
         if not self.is_available:
-            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
         try:
             import requests
@@ -274,6 +321,9 @@ class KubernetesClient:
                     metadata = pod.get('metadata', {})
                     spec = pod.get('spec', {})
 
+                    # Extract NVIDIA GPU resources
+                    gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(spec)
+
                     return KubernetesInfo(
                         pod_name=metadata.get('name', NA),
                         pod_namespace=metadata.get('namespace', NA),
@@ -281,14 +331,16 @@ class KubernetesClient:
                         container_name=NA,
                         container_id=NA,
                         node_name=spec.get('nodeName', NA),
-                        pod_labels=metadata.get('labels', NA) or {}
+                        pod_labels=metadata.get('labels', NA) or {},
+                        nvidia_gpu_requests=gpu_requests,
+                        nvidia_gpu_limits=gpu_limits
                     )
 
             # Pod not found
-            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
         except Exception:
-            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+            return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
 
 # Global Kubernetes client instance
@@ -317,12 +369,12 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
         KubernetesInfo object with pod/container details.
     """
     if not is_kubernetes_environment():
-        return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+        return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
     # Extract pod information from /proc
     pod_info = extract_pod_from_pid(pid)
     if pod_info is None:
-        return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
+        return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
     # If we have a pod UID, try to get detailed information from API
     client = _get_kubernetes_client()
@@ -340,5 +392,7 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
         container_name=NA,
         container_id=pod_info.get('container_id', NA),
         node_name=NA,
-        pod_labels={}
+        pod_labels={},
+        nvidia_gpu_requests=NA,
+        nvidia_gpu_limits=NA
     )
