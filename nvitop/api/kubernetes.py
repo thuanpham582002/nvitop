@@ -55,8 +55,9 @@ def is_kubernetes_environment() -> bool:
     if os.getenv('KUBERNETES_SERVICE_HOST') is not None:
         return True
 
-    token_path = '/var/run/secrets/kubernetes.io/serviceaccount/token'
-    if os.path.isfile(token_path):
+    # Check for Kubernetes service account token (standard K8s path, not a password)
+    k8s_serviceaccount_path = '/var/run/secrets/kubernetes.io/serviceaccount/token'
+    if os.path.isfile(k8s_serviceaccount_path):
         return True
 
     try:
@@ -114,14 +115,16 @@ def extract_pod_from_pid(pid: int) -> dict[str, str | None] | None:
                     if container_match:
                         container_id = container_match.group(1)
 
-        if container_id is None:
-            return None
-        return {
-            'container_id': container_id,
-            'pod_uid': pod_uid,
-            'pod_name': None,
-            'namespace': None,
-        }
+        def _create_container_info(container_id: str, pod_uid: str | None) -> dict[str, str | None]:
+            """Create container info dictionary."""
+            return {
+                'container_id': container_id,
+                'pod_uid': pod_uid,
+                'pod_name': None,
+                'namespace': None,
+            }
+
+        return None if container_id is None else _create_container_info(container_id, pod_uid)
 
     except (OSError, ValueError):
         return None
@@ -307,6 +310,61 @@ class KubernetesClient:
 
         return gpu_requests, gpu_limits
 
+    def _get_pods_from_namespace(self, api: Any, namespace: str) -> list:
+        """Get pods from a single namespace, handling exceptions."""
+        try:
+            pods = api.list_namespaced_pod(namespace=namespace)
+        except (ImportError, OSError, KeyError, ValueError):
+            return []
+        else:
+            return pods.items
+
+    def _search_pods_in_namespaces(
+        self,
+        api: Any,
+        namespaces: list[str],
+        pod_uid: str,
+        convert_uid: bool = True,
+    ) -> KubernetesInfo | None:
+        """Search for pod in list of namespaces without try-except in inner loop."""
+        for namespace in namespaces:
+            pods = self._get_pods_from_namespace(api, namespace)
+            for pod in pods:
+                pod_info = self._extract_pod_info(pod, pod_uid, convert_uid)
+                if pod_info is not None:
+                    return pod_info
+        return None
+
+    def _extract_pod_info(
+        self,
+        pod: Any,
+        pod_uid: str,
+        convert_uid: bool = True,
+    ) -> KubernetesInfo | None:
+        """Extract pod information safely without exceptions in loops."""
+        try:
+            # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes) if needed
+            target_uid = pod_uid.replace('_', '-') if convert_uid else pod_uid
+            if pod.metadata.uid == target_uid:
+                gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
+                    pod.spec.to_dict(),
+                )
+
+                return KubernetesInfo(
+                    pod_name=pod.metadata.name,
+                    pod_namespace=pod.metadata.namespace,
+                    pod_uid=pod.metadata.uid,
+                    container_name=NA,
+                    container_id=NA,
+                    node_name=pod.spec.node_name,
+                    pod_labels=pod.metadata.labels or {},
+                    nvidia_gpu_requests=gpu_requests,
+                    nvidia_gpu_limits=gpu_limits,
+                )
+        except (ImportError, OSError, KeyError, ValueError, AttributeError):
+            pass
+        return None
+
     def _find_container_name_by_id(self, pod: Any, container_id: str) -> str | None:
         """Find container name by container ID using pod status information.
 
@@ -407,30 +465,12 @@ class KubernetesClient:
 
             common_namespaces = ['default', 'kube-system', 'kube-public']
 
-            for namespace in common_namespaces:
-                try:
-                    pods = api.list_namespaced_pod(namespace=namespace)
-                    for pod in pods.items:
-                        # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
-                        k8s_pod_uid = pod_uid.replace('_', '-')
-                        if pod.metadata.uid == k8s_pod_uid:
-                            gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
-                                pod.spec.to_dict(),
-                            )
-
-                            return KubernetesInfo(
-                                pod_name=pod.metadata.name,
-                                pod_namespace=pod.metadata.namespace,
-                                pod_uid=pod.metadata.uid,
-                                container_name=NA,
-                                container_id=NA,
-                                node_name=pod.spec.node_name,
-                                pod_labels=pod.metadata.labels or {},
-                                nvidia_gpu_requests=gpu_requests,
-                                nvidia_gpu_limits=gpu_limits,
-                            )
-                except (ImportError, OSError, KeyError, ValueError):
-                    continue
+            return self._search_pods_in_namespaces(
+                api,
+                common_namespaces,
+                pod_uid,
+                convert_uid=True,
+            )
 
             try:
                 from kubernetes.client import CoreV1Api
@@ -438,50 +478,19 @@ class KubernetesClient:
                 api = CoreV1Api()
 
                 namespaces = api.list_namespace()
-
-                for ns in namespaces.items:
-                    try:
-                        pods = api.list_namespaced_pod(namespace=ns.metadata.name)
-                        for pod in pods.items:
-                            # Convert cgroup pod UID (underscores) to Kubernetes UID (dashes)
-                            k8s_pod_uid = pod_uid.replace('_', '-')
-                            if pod.metadata.uid == k8s_pod_uid:
-                                gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
-                                    pod.spec.to_dict(),
-                                )
-
-                                return KubernetesInfo(
-                                    pod_name=pod.metadata.name,
-                                    pod_namespace=pod.metadata.namespace,
-                                    pod_uid=pod.metadata.uid,
-                                    container_name=NA,
-                                    container_id=NA,
-                                    node_name=pod.spec.node_name,
-                                    pod_labels=pod.metadata.labels or {},
-                                    nvidia_gpu_requests=gpu_requests,
-                                    nvidia_gpu_limits=gpu_limits,
-                                )
-                    except (ImportError, OSError, KeyError, ValueError):
-                        continue
+                namespace_list = [ns.metadata.name for ns in namespaces.items]
+                return self._search_pods_in_namespaces(
+                    api,
+                    namespace_list,
+                    pod_uid,
+                    convert_uid=True,
+                )
             except (ImportError, OSError, KeyError, ValueError):
                 pods = api.list_pod_for_all_namespaces()
                 for pod in pods.items:
-                    if pod.metadata.uid == pod_uid:
-                        gpu_requests, gpu_limits = self._extract_nvidia_gpu_resources(
-                            pod.spec.to_dict(),
-                        )
-
-                        return KubernetesInfo(
-                            pod_name=pod.metadata.name,
-                            pod_namespace=pod.metadata.namespace,
-                            pod_uid=pod.metadata.uid,
-                            container_name=NA,
-                            container_id=NA,
-                            node_name=pod.spec.node_name,
-                            pod_labels=pod.metadata.labels or {},
-                            nvidia_gpu_requests=gpu_requests,
-                            nvidia_gpu_limits=gpu_limits,
-                        )
+                    pod_info = self._extract_pod_info(pod, pod_uid, convert_uid=False)
+                    if pod_info is not None:
+                        return pod_info
 
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
