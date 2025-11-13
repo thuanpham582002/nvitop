@@ -103,25 +103,17 @@ def extract_pod_from_pid(pid: int) -> dict[str, str] | None:
                         cgroup_path = parts[2]
 
                 if "kubepods" in cgroup_path:
-                    path_parts = cgroup_path.split("/")
+                    # Extract pod UID using improved regex
+                    pod_uid_pattern = r"pod([a-f0-9-]+)"
+                    pod_match = re.search(pod_uid_pattern, cgroup_path)
+                    if pod_match:
+                        pod_uid = pod_match.group(1)
 
-                    for i, part in enumerate(path_parts):
-                        if part.startswith("pod") and len(part) > 3:
-                            pod_uid = part[3:]
-                            if i + 1 < len(path_parts):
-                                potential_id = path_parts[i + 1]
-                                if len(potential_id) >= 12 and re.match(
-                                    r"^[a-f0-9]{12,}", potential_id
-                                ):
-                                    container_id = potential_id
-                            break
-
-                    if container_id is None and path_parts:
-                        potential_id = path_parts[-1]
-                        if len(potential_id) >= 12 and re.match(
-                            r"^[a-f0-9]{12,}", potential_id
-                        ):
-                            container_id = potential_id
+                    # Extract container ID using improved regex
+                    container_id_pattern = r"cri-[^-]+-([a-f0-9]{12,})"
+                    container_match = re.search(container_id_pattern, cgroup_path)
+                    if container_match:
+                        container_id = container_match.group(1)
 
         if container_id is None:
             return None
@@ -583,9 +575,6 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
     Returns:
         KubernetesInfo object with pod/container details.
     """
-    if not is_kubernetes_environment():
-        return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
-
     pod_info = extract_pod_from_pid(pid)
     if pod_info is None:
         return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
