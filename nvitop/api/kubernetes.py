@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from nvitop.api import host
-from nvitop.api.utils import NA, NaType, ttl_cache
+from nvitop.api.utils import NA, NaType, memoize_when_activated
 
 
 __all__ = [
@@ -365,7 +365,7 @@ class KubernetesClient:
 
         return None
 
-    @ttl_cache(ttl=60)  # Cache for 60 seconds
+    @memoize_when_activated
     def get_pod_info(
         self, pod_name: str, namespace: str | None = None
     ) -> KubernetesInfo:
@@ -411,7 +411,7 @@ class KubernetesClient:
         except Exception:
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
-    @ttl_cache(ttl=60)  # Cache for 60 seconds
+    @memoize_when_activated
     def get_pod_by_uid(self, pod_uid: str) -> KubernetesInfo:
         """Get pod information by UID using official Kubernetes client.
 
@@ -573,7 +573,7 @@ _container_pod_cache: dict[str, KubernetesInfo] = {}
 _cache_lock: threading.Lock = threading.Lock()
 
 
-@ttl_cache(ttl=30)  # Cache for 30 seconds
+@memoize_when_activated
 def get_kubernetes_info(pid: int) -> KubernetesInfo:
     """Get Kubernetes information for a given process PID.
 
