@@ -370,18 +370,7 @@ spec:
       - name: nvitop
         image: nvitop:latest
         command: ["sleep", "infinity"]
-        env:
-        - name: NVITOP_PROC_PATH
-          value: "/host/proc"
-        volumeMounts:
-        - name: proc
-          mountPath: /host/proc
-          readOnly: true
-      volumes:
-      - name: proc
-        hostPath:
-          path: /proc
-      runtimeClassName: nvidia
+  runtimeClassName: nvidia
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -413,12 +402,11 @@ subjects:
 ```
 
 **Key Requirements for Kubernetes:**
-- `hostPID: true` and proc volume mount for process visibility
+- `hostPID: true` for process visibility (access to host /proc)
 - NVIDIA Container Toolkit or NVIDIA device plugin
 - Service account with appropriate RBAC permissions (optional, for pod details)
 
 **Environment Variables:**
-- `NVITOP_PROC_PATH`: Override proc filesystem path (default: `/proc`)
 - `KUBECONFIG`: Path to kubeconfig file for cluster access
 
 **Usage Examples:**
@@ -448,17 +436,15 @@ nvitop
 # Or specify a specific context
 KUBECONFIG=~/.kube/production-config nvitop
 
-# For Docker environments with custom proc path
+# For Docker environments
 docker run -it --rm --runtime=nvidia --gpus=all --pid=host \
   -v ~/.kube:/root/.kube:ro \
-  -v /proc:/host/proc:ro \
-  -e NVITOP_PROC_PATH=/host/proc \
   ghcr.io/xuehaipan/nvitop:latest
 ```
 
 **How it works:**
 1. `nvitop` detects local GPU processes
-2. Extracts container information from `/proc/<pid>/cgroup` (or custom path via `NVITOP_PROC_PATH`)
+2. Extracts container information from `/proc/<pid>/cgroup`
 3. Uses container ID to find matching pods via Kubernetes API
 4. Displays pod information alongside process details
 
@@ -466,7 +452,7 @@ docker run -it --rm --runtime=nvidia --gpus=all --pid=host \
 - Valid kubeconfig with cluster access
 - Network connectivity to Kubernetes API server
 - GPU processes running in containers on accessible nodes
-- Access to proc filesystem (use `NVITOP_PROC_PATH` for custom paths)
+- Access to host proc filesystem via `--pid=host`
 
 #### For Docker Users with Kubernetes
 
@@ -475,11 +461,10 @@ Build and run the Docker image with [nvidia-container-toolkit](https://github.co
 ```bash
 docker run -it --rm --runtime=nvidia --gpus=all --pid=host \
   -v ~/.kube:/root/.kube:ro \
-  -v /proc:/host/proc:ro \
   ghcr.io/xuehaipan/nvitop:latest
 ```
 
-**NOTE:** Don't forget to add the `--pid=host` option, mount your kubeconfig, and mount `/proc` for cgroup parsing when running the container.
+**NOTE:** Don't forget to add the `--pid=host` option and mount your kubeconfig for Kubernetes pod information when running the container.
 
 #### For SSH Users
 

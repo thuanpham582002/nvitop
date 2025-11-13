@@ -58,10 +58,9 @@ def is_kubernetes_environment() -> bool:
     if os.path.isfile(token_path):
         return True
 
-    proc_base = os.getenv("NVITOP_PROC_PATH", "/proc")
     try:
-        if os.path.isfile(f"{proc_base}/1/cgroup"):
-            with open(f"{proc_base}/1/cgroup", "r") as f:
+        if os.path.isfile("/proc/1/cgroup"):
+            with open("/proc/1/cgroup", "r") as f:
                 cgroup_content = f.read()
                 if (
                     "docker" in cgroup_content
@@ -85,8 +84,7 @@ def extract_pod_from_pid(pid: int) -> dict[str, str] | None:
         Dictionary containing pod info or None if not found.
     """
     try:
-        proc_base = os.getenv("NVITOP_PROC_PATH", "/proc")
-        cgroup_path = f"{proc_base}/{pid}/cgroup"
+        cgroup_path = f"/proc/{pid}/cgroup"
         if not os.path.isfile(cgroup_path):
             return None
 
