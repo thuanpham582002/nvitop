@@ -46,7 +46,6 @@ env:
 jobs:
   build-and-publish:
     name: Build and Publish Docker Images for ${{ matrix.name }}
-    if: github.repository_owner == 'XuehaiPan'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
