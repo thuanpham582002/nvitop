@@ -38,8 +38,6 @@ class PrometheusExporter:  # pylint: disable=too-many-instance-attributes
         *,
         registry: CollectorRegistry = REGISTRY,
         interval: float = 1.0,
-        kubernetes_enabled: bool = False,
-        kubernetes_cache_ttl: int = 60,
     ) -> None:
         """Initialize the Prometheus exporter."""
         if not isinstance(devices, (list, tuple)):
@@ -54,8 +52,6 @@ class PrometheusExporter:  # pylint: disable=too-many-instance-attributes
         self.hostname = hostname or get_ip_address()
         self.registry = registry
         self.interval = interval
-        self.kubernetes_enabled = kubernetes_enabled
-        self.kubernetes_cache_ttl = kubernetes_cache_ttl
         self.alive_pids: dict[Device, set[tuple[int, str]]] = {
             device: set() for device in self.devices
         }
@@ -801,24 +797,18 @@ class PrometheusExporter:  # pylint: disable=too-many-instance-attributes
                     else:
                         host_snapshot = host_snapshots[pid, username]
 
-                    # Collect Kubernetes information if enabled
-                    if self.kubernetes_enabled:
-                        try:
-                            k8s_pod_name = process.pod_name()
-                            k8s_pod_namespace = process.pod_namespace()
-                            k8s_pod_uid = process.pod_uid()
-                            k8s_container_name = process.container_name()
-                            k8s_container_id = process.container_id()
-                            k8s_node_name = process.node_name()
-                            k8s_pod_labels = process.pod_labels()
-                            k8s_gpu_requests = process.nvidia_gpu_requests()
-                            k8s_gpu_limits = process.nvidia_gpu_limits()
-                        except (ImportError, OSError, AttributeError, KeyError):
-                            k8s_pod_name = k8s_pod_namespace = k8s_pod_uid = 'N/A'
-                            k8s_container_name = k8s_container_id = k8s_node_name = 'N/A'
-                            k8s_pod_labels = {}
-                            k8s_gpu_requests = k8s_gpu_limits = 0
-                    else:
+                    # Collect Kubernetes information (always enabled)
+                    try:
+                        k8s_pod_name = process.pod_name()
+                        k8s_pod_namespace = process.pod_namespace()
+                        k8s_pod_uid = process.pod_uid()
+                        k8s_container_name = process.container_name()
+                        k8s_container_id = process.container_id()
+                        k8s_node_name = process.node_name()
+                        k8s_pod_labels = process.pod_labels()
+                        k8s_gpu_requests = process.nvidia_gpu_requests()
+                        k8s_gpu_limits = process.nvidia_gpu_limits()
+                    except (ImportError, OSError, AttributeError, KeyError, ValueError):
                         k8s_pod_name = k8s_pod_namespace = k8s_pod_uid = 'N/A'
                         k8s_container_name = k8s_container_id = k8s_node_name = 'N/A'
                         k8s_pod_labels = {}

@@ -118,32 +118,6 @@ def parse_arguments() -> argparse.Namespace:
         help='Interval between updates in seconds. (default: %(default)s)',
     )
 
-    # Kubernetes integration options
-    parser.add_argument(
-        '--kubernetes',
-        '--k8s',
-        dest='kubernetes',
-        action='store_true',
-        default=False,
-        help='Enable Kubernetes integration for process metrics.',
-    )
-    parser.add_argument(
-        '--no-kubernetes',
-        '--no-k8s',
-        dest='kubernetes',
-        action='store_false',
-        help='Disable Kubernetes integration for process metrics.',
-    )
-    parser.add_argument(
-        '--kubernetes-cache-ttl',
-        '--k8s-cache-ttl',
-        dest='kubernetes_cache_ttl',
-        type=int,
-        default=60,
-        metavar='SECONDS',
-        help='Kubernetes API cache TTL in seconds. (default: %(default)s)',
-    )
-
     args = parser.parse_args()
     if args.interval < 0.25:
         parser.error(
@@ -208,17 +182,7 @@ def main() -> int:  # pylint: disable=too-many-locals,too-many-statements
         devices,
         hostname=args.hostname,
         interval=args.interval,
-        kubernetes_enabled=args.kubernetes,
-        kubernetes_cache_ttl=args.kubernetes_cache_ttl,
     )
-
-    if args.kubernetes:
-        cprint(
-            'INFO: Kubernetes integration enabled with {}s cache TTL.'.format(
-                colored(str(args.kubernetes_cache_ttl), color='blue', attrs=('bold',)),
-            ),
-            file=sys.stderr,
-        )
 
     try:
         start_wsgi_server(port=args.port, addr=args.bind_address)
