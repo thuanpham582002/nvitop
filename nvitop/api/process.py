@@ -50,6 +50,14 @@ except ImportError:
     kubernetes = None  # type: ignore[assignment]
 
     def kubernetes_info_fallback(**kwargs: Any) -> Any:
+        """Fallback function for when kubernetes module is not available.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments to be added to the fallback object.
+
+        Returns:
+            A dynamic object with the provided kwargs as attributes.
+        """
         return type('KubernetesInfo', (), kwargs)()
 
     KubernetesInfo = kubernetes_info_fallback  # type: ignore[misc, assignment]

@@ -960,7 +960,12 @@ class PrometheusExporter:  # pylint: disable=too-many-instance-attributes
                         uuid,
                         pid,
                         username,
-                        **k8s_na_values,
+                        k8s_na_values['pod_name'],
+                        k8s_na_values['pod_namespace'],
+                        k8s_na_values['pod_uid'],
+                        k8s_na_values['container_name'],
+                        k8s_na_values['container_id'],
+                        k8s_na_values['node_name'],
                     )
                 except KeyError:  # noqa: PERF203
                     pass
