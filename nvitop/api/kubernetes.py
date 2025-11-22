@@ -321,8 +321,8 @@ class KubernetesClient:
         container = containers[0] if containers else {}
         resources = container.get('resources', {})
 
-        requests = resources.get('requests', {})
-        limits = resources.get('limits', {})
+        requests = resources.get('requests') or {}
+        limits = resources.get('limits') or {}
 
         gpu_requests = 0
         gpu_limits = 0
