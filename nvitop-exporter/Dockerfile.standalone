@@ -1,0 +1,84 @@
+# Multi-stage Dockerfile for nvitop-exporter with standalone Python
+# Stage 1: Build Python environment with nvitop
+FROM ubuntu:22.04 AS builder
+
+# Set environment variables for build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHON_VERSION=3.10.19
+ENV PYTHON_BUILD_DATE=20251031
+ENV NVITOP_INSTALL_PATH=/opt/nvitop-env
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    tar \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create installation directory
+RUN mkdir -p ${NVITOP_INSTALL_PATH}
+
+# Download Python standalone build with multi-architecture support
+WORKDIR ${NVITOP_INSTALL_PATH}
+RUN echo "Downloading Python ${PYTHON_VERSION} standalone build..." && \
+    ARCH=$(dpkg --print-architecture) && \
+    echo "Detected architecture: $ARCH" && \
+    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then \
+        PYTHON_ARCH="aarch64-unknown-linux-gnu"; \
+    else \
+        PYTHON_ARCH="x86_64-unknown-linux-gnu"; \
+    fi && \
+    echo "Using Python build for: $PYTHON_ARCH" && \
+    curl -LO https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD_DATE}/cpython-${PYTHON_VERSION}+${PYTHON_BUILD_DATE}-${PYTHON_ARCH}-install_only.tar.gz && \
+    echo "Extracting Python..." && \
+    tar -xzf cpython-${PYTHON_VERSION}+${PYTHON_BUILD_DATE}-${PYTHON_ARCH}-install_only.tar.gz && \
+    rm cpython-${PYTHON_VERSION}+${PYTHON_BUILD_DATE}-${PYTHON_ARCH}-install_only.tar.gz
+
+# Copy and install nvitop from source
+WORKDIR ${NVITOP_INSTALL_PATH}
+COPY .. ./nvitop-source/
+RUN echo "Installing nvitop packages from source..." && \
+    ./python/bin/pip3 install --upgrade pip && \
+    ./python/bin/pip3 install -e ./nvitop-source/ && \
+    ./python/bin/pip3 install -e ./nvitop-source/nvitop-exporter/
+
+# Fix shebang lines for all nvitop executables
+RUN echo "Fixing shebang lines for nvitop executables..." && \
+    for exe in nvitop nvitop-exporter nvisel; do \
+        if [ -f "./python/bin/$exe" ]; then \
+            sed -i "1s|.*|#!/bin/sh\n'''exec' \"\$(dirname -- \"\$(realpath -- \"\$0\")\")/python3.10\" \"\$0\" \"\$@\"\n' '''|" "./python/bin/$exe" && \
+            chmod +x "./python/bin/$exe" && \
+            echo "✅ Fixed $exe"; \
+        fi; \
+    done
+
+# Verify installation
+RUN echo "Verifying nvitop installation..." && \
+    ./python/bin/pip3 list | grep nvitop && \
+    ls -la ./python/bin/nvitop ./python/bin/nvitop-exporter ./python/bin/nvisel
+
+# Stage 2: Final Ubuntu stage with standalone Python environment
+FROM ubuntu:latest
+
+# Set environment
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LC_ALL=C.UTF-8
+RUN apt-get update && apt-get install -y locales && \
+    locale-gen en_US.UTF-8 && \
+    update-locale LC_ALL="C.UTF-8" && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the standalone Python environment from builder stage to /opt
+COPY --from=builder /opt/nvitop-env /opt/nvitop-env
+
+# Create symlink for easier access
+RUN ln -sf /opt/nvitop-env/python/bin/nvitop-exporter /usr/local/bin/nvitop-exporter
+
+# Set PATH to include the standalone Python
+ENV PATH="/opt/nvitop-env/python/bin:$PATH"
+
+# Test that it works
+RUN /opt/nvitop-env/python/bin/nvitop-exporter --version
+
+# Entrypoint
+ENTRYPOINT ["/opt/nvitop-env/python/bin/python3", "-m", "nvitop_exporter"]
