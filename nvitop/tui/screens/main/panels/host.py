@@ -290,7 +290,8 @@ class HostPanel(BasePanel):  # pylint: disable=too-many-instance-attributes
                     'CPU',
                     self.cpu_percent,
                     width_left - 4,
-                    extra_text=f'  UPTIME: {timedelta2human(host.uptime(), round=True)}',
+                    extra_text=f'UPTIME: {timedelta2human(host.uptime(), round=True)}',
+                    extra_blank=' ',
                 ),
             )
             memory_bar = '[ {} ]'.format(
@@ -298,7 +299,8 @@ class HostPanel(BasePanel):  # pylint: disable=too-many-instance-attributes
                     'MEM',
                     self.virtual_memory.percent,
                     width_left - 4,
-                    extra_text=f'  USED: {bytes2human(self.virtual_memory.used, min_unit=GiB)}',
+                    extra_text=f'USED: {bytes2human(self.virtual_memory.used, min_unit=GiB)}',
+                    extra_blank=' ',
                 ),
             )
             swap_bar = '[ {} ]'.format(
@@ -371,6 +373,8 @@ class HostPanel(BasePanel):  # pylint: disable=too-many-instance-attributes
                 gpu_memory_percent = self.average_gpu_memory_percent
                 gpu_utilization = self.average_gpu_utilization
 
+            assert gpu_memory_percent is not None
+            assert gpu_utilization is not None
             if self.TERM_256COLOR:
                 for i, (y, line) in enumerate(enumerate(gpu_memory_percent.graph, start=self.y)):
                     self.addstr(y, self.x + 79, line, self.get_fg_bg_attr(fg=1.0 - i / 4.0))
@@ -435,7 +439,8 @@ class HostPanel(BasePanel):  # pylint: disable=too-many-instance-attributes
                 'CPU',
                 self.cpu_percent,
                 width_left - 4,
-                extra_text=f'  UPTIME: {timedelta2human(host.uptime(), round=True)}',
+                extra_text=f'UPTIME: {timedelta2human(host.uptime(), round=True)}',
+                extra_blank=' ',
             ),
         )
         memory_bar = '[ {} ]'.format(
@@ -443,7 +448,8 @@ class HostPanel(BasePanel):  # pylint: disable=too-many-instance-attributes
                 'MEM',
                 self.virtual_memory.percent,
                 width_left - 4,
-                extra_text=f'  USED: {bytes2human(self.virtual_memory.used, min_unit=GiB)}',
+                extra_text=f'USED: {bytes2human(self.virtual_memory.used, min_unit=GiB)}',
+                extra_blank=' ',
             ),
         )
         swap_bar = '[ {} ]'.format(make_bar_chart('SWP', self.swap_memory.percent, width_right - 4))

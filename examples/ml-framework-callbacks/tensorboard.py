@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 
@@ -35,15 +34,6 @@ if TYPE_CHECKING:
             from tensorboardX import SummaryWriter
         except ImportError:
             pass
-
-
-warnings.warn(
-    f'The `{__name__}` module is deprecated '
-    'and will not be supported in the future. '
-    'Feel free to port and implement your own callback using `nvitop`.',
-    category=FutureWarning,
-    stacklevel=2,
-)
 
 
 def add_scalar_dict(

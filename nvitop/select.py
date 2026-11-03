@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ import math
 import os
 import sys
 import warnings
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Literal, cast, overload
 
 from nvitop.api import Device, GpuProcess, Snapshot, colored, host, human2bytes, libnvml
 from nvitop.version import __version__
@@ -77,55 +77,55 @@ __all__ = ['select_devices']
 
 @overload
 def select_devices(  # pylint: disable=too-many-arguments
-    devices: Iterable[Device] | None,
+    devices: Iterable[Device] | None = ...,
     *,
-    format: Literal['index'],  # pylint: disable=redefined-builtin
-    force_index: bool,
-    min_count: int,
-    max_count: int | None,
-    min_free_memory: int | str | None,
-    min_total_memory: int | str | None,
-    max_gpu_utilization: int | None,
-    max_memory_utilization: int | None,
-    tolerance: int,
-    free_accounts: list[str] | None,
-    sort: bool,
+    format: Literal['index'] = ...,  # pylint: disable=redefined-builtin
+    force_index: bool = ...,
+    min_count: int = ...,
+    max_count: int | None = ...,
+    min_free_memory: int | str | None = ...,
+    min_total_memory: int | str | None = ...,
+    max_gpu_utilization: int | None = ...,
+    max_memory_utilization: int | None = ...,
+    tolerance: int = ...,
+    free_accounts: list[str] | None = ...,
+    sort: bool = ...,
 ) -> list[int] | list[tuple[int, int]]: ...
 
 
 @overload
 def select_devices(  # pylint: disable=too-many-arguments
-    devices: Iterable[Device] | None,
+    devices: Iterable[Device] | None = ...,
     *,
     format: Literal['uuid'],  # pylint: disable=redefined-builtin
-    force_index: bool,
-    min_count: int,
-    max_count: int | None,
-    min_free_memory: int | str | None,
-    min_total_memory: int | str | None,
-    max_gpu_utilization: int | None,
-    max_memory_utilization: int | None,
-    tolerance: int,
-    free_accounts: list[str] | None,
-    sort: bool,
-) -> list[int] | list[tuple[int, int]]: ...
+    force_index: bool = ...,
+    min_count: int = ...,
+    max_count: int | None = ...,
+    min_free_memory: int | str | None = ...,
+    min_total_memory: int | str | None = ...,
+    max_gpu_utilization: int | None = ...,
+    max_memory_utilization: int | None = ...,
+    tolerance: int = ...,
+    free_accounts: list[str] | None = ...,
+    sort: bool = ...,
+) -> list[str]: ...
 
 
 @overload
 def select_devices(  # pylint: disable=too-many-arguments
-    devices: Iterable[Device] | None,
+    devices: Iterable[Device] | None = ...,
     *,
     format: Literal['device'],  # pylint: disable=redefined-builtin
-    force_index: bool,
-    min_count: int,
-    max_count: int | None,
-    min_free_memory: int | str | None,
-    min_total_memory: int | str | None,
-    max_gpu_utilization: int | None,
-    max_memory_utilization: int | None,
-    tolerance: int,
-    free_accounts: list[str] | None,
-    sort: bool,
+    force_index: bool = ...,
+    min_count: int = ...,
+    max_count: int | None = ...,
+    min_free_memory: int | str | None = ...,
+    min_total_memory: int | str | None = ...,
+    max_gpu_utilization: int | None = ...,
+    max_memory_utilization: int | None = ...,
+    tolerance: int = ...,
+    free_accounts: list[str] | None = ...,
+    sort: bool = ...,
 ) -> list[Device]: ...
 
 
@@ -137,8 +137,8 @@ def select_devices(
     force_index: bool = False,
     min_count: int = 0,
     max_count: int | None = None,
-    min_free_memory: int | str | None = None,  # in bytes or human readable
-    min_total_memory: int | str | None = None,  # in bytes or human readable
+    min_free_memory: int | str | None = None,  # in bytes or human-readable
+    min_total_memory: int | str | None = None,  # in bytes or human-readable
     max_gpu_utilization: int | None = None,  # in percentage
     max_memory_utilization: int | None = None,  # in percentage
     tolerance: int = 0,  # in percentage
@@ -148,7 +148,7 @@ def select_devices(
     """Select a subset of devices satisfying the specified criteria.
 
     Note:
-        The *min count* constraint may not be satisfied if the no enough devices are available. This
+        The *min count* constraint may not be satisfied if not enough devices are available. This
         constraint is only enforced when there are both MIG and non-MIG devices present.
 
     Examples:
@@ -177,10 +177,10 @@ def select_devices(
         max_count (Optional[int]):
             The maximum number of devices to select.
         min_free_memory (Optional[Union[int, str]]):
-            The minimum free memory (an :class:`int` *in bytes* or a :class:`str` in human readable
+            The minimum free memory (an :class:`int` *in bytes* or a :class:`str` in human-readable
             form) of the selected devices.
         min_total_memory (Optional[Union[int, str]]):
-            The minimum total memory (an :class:`int` *in bytes* or a :class:`str` in human readable
+            The minimum total memory (an :class:`int` *in bytes* or a :class:`str` in human-readable
             form) of the selected devices.
         max_gpu_utilization (Optional[int]):
             The maximum GPU utilization rate (*in percentage*) of the selected devices.
@@ -452,11 +452,11 @@ def parse_arguments() -> argparse.Namespace:
         '--tol',
         dest='tolerance',
         type=non_negint,
-        default=10,
+        default=0,
         metavar='TOL',
         help=(
-            'The constraints tolerance (in percentage). (default: 0, i.e., strict)\n'
-            'This option can loose the constraints if the requested resource is not available.\n'
+            'The constraints tolerance (in percentage). (default: %(default)d, i.e., strict)\n'
+            'This option can loosen the constraints if the requested resource is not available.\n'
             'For example, set `--tolerance=20` will accept a device with only 4GiB of free\n'
             'memory when set `--min-free-memory=5GiB`.'
         ),
@@ -561,9 +561,9 @@ def main() -> int:
         )
         return 3
 
-    identifiers = select_devices(  # type: ignore[call-overload]
+    identifiers = select_devices(
         devices,
-        format=args.format,
+        format=cast('Literal["index", "uuid"]', args.format),
         min_count=args.min_count,
         max_count=args.max_count,
         min_free_memory=args.min_free_memory,

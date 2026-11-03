@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,15 +24,16 @@ __all__ = ['get_ip_address']
 
 # Reference: https://stackoverflow.com/a/28950776
 def get_ip_address() -> str:
-    """Get the IP address of the current machine."""
+    """Best-effort guess of a routable local IPv4 address; silently falls back to ``127.0.0.1``."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(0.0)
     try:
-        # Doesn't even have to be reachable
+        # Doesn't even have to be reachable; the kernel picks the source IP for the route.
         s.connect(('10.254.254.254', 1))
-        ip_address = s.getsockname()[0]
-    except Exception:  # noqa: BLE001 # pylint: disable=broad-except
-        ip_address = '127.0.0.1'
+        return str(s.getsockname()[0])
+    except OSError:
+        # Non-blocking UDP probe surfaces every failure (no route, gaierror, EHOSTUNREACH, ...)
+        # as an OSError subclass; collapse them all into the loopback fallback.
+        return '127.0.0.1'
     finally:
         s.close()
-    return ip_address
