@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -231,7 +231,7 @@ cudaErrorMpsServerNotReady = 807
 cudaErrorMpsMaxClientsReached = 808
 """This error indicates that the hardware resources required to create MPS client have been exhausted."""
 cudaErrorMpsMaxConnectionsReached = 809
-"""This error indicates the the hardware resources required to device connections have been exhausted."""
+"""This error indicates that the hardware resources required for device connections have been exhausted."""
 cudaErrorMpsClientTerminated = 810
 """This error indicates that the MPS client has been terminated by the server. To continue using CUDA, the process must be terminated and relaunched."""
 cudaErrorCdpNotSupported = 811
@@ -292,10 +292,10 @@ class cudaError(Exception):
         """Map value to a proper subclass of :class:`cudaError`."""
         if cls is cudaError:
             # pylint: disable-next=self-cls-assignment
-            cls = cudaError._value_class_mapping.get(value, cls)  # type: ignore[assignment]
+            cls = cudaError._value_class_mapping.get(value, cls)
         obj = Exception.__new__(cls)
         obj.value = value
-        return obj
+        return obj  # type: ignore[return-value]
 
     def __repr__(self) -> str:
         """Return a string representation of the error."""
@@ -342,7 +342,7 @@ def _extract_cuda_errors_as_classes() -> None:
     Each CUDA Error gets a new :class:`cudaError` subclass. This way try-except blocks can filter
     appropriate exceptions more easily.
 
-    :class:`cudaError` is a parent class. Each ``cudaError*`` gets it's own subclass.
+    :class:`cudaError` is a parent class. Each ``cudaError*`` gets its own subclass.
     e.g. :data:`cudaErrorInvalidValue` will be turned into :class:`cudaError_InvalidValue`.
     """
     this_module = _sys.modules[__name__]

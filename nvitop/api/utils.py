@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -530,7 +530,7 @@ SIZE_PATTERN: re.Pattern = re.compile(
     r'^\s*\+?\s*(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>([KMGTP]i?)?)B?\s*$',
     flags=re.IGNORECASE,
 )
-"""The regex pattern for human readable size."""
+"""The regex pattern for human-readable size."""
 
 
 # pylint: disable-next=too-many-return-statements,too-many-branches
@@ -540,7 +540,7 @@ def bytes2human(
     *,
     min_unit: int = 1,
 ) -> str:
-    """Convert bytes to a human readable string."""
+    """Convert bytes to a human-readable string."""
     if b == NA:
         return NA
 
@@ -574,7 +574,7 @@ def bytes2human(
 
 
 def human2bytes(s: int | str, /) -> int:
-    """Convert a human readable size string (*case insensitive*) to bytes.
+    """Convert a human-readable size string (*case insensitive*) to bytes.
 
     Raises:
         ValueError:
@@ -615,7 +615,7 @@ def timedelta2human(
     *,
     round: bool = False,  # pylint: disable=redefined-builtin
 ) -> str:
-    """Convert a number in seconds or a :class:`datetime.timedelta` instance to a human readable string."""
+    """Convert a number in seconds or a :class:`datetime.timedelta` instance to a human-readable string."""
     if isinstance(dt, (int, float)):
         dt = datetime.timedelta(seconds=dt)
 

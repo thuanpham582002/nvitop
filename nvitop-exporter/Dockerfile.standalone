@@ -39,8 +39,8 @@ WORKDIR ${NVITOP_INSTALL_PATH}
 COPY .. ./nvitop-source/
 RUN echo "Installing nvitop packages from source..." && \
     ./python/bin/pip3 install --upgrade pip && \
-    ./python/bin/pip3 install -e ./nvitop-source/ && \
-    ./python/bin/pip3 install -e ./nvitop-source/nvitop-exporter/
+    ./python/bin/pip3 install "./nvitop-source/[kubernetes]" && \
+    ./python/bin/pip3 install "./nvitop-source/nvitop-exporter/[kubernetes]"
 
 # Fix shebang lines for all nvitop executables
 RUN echo "Fixing shebang lines for nvitop executables..." && \

@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ def take_snapshots(
         A named tuple containing two lists of snapshots.
 
     Note:
-        If not arguments are specified, all devices and all GPU processes will
+        If no arguments are specified, all devices and all GPU processes will
         be returned.
 
     Examples:
@@ -183,10 +183,13 @@ def take_snapshots(
             itertools.chain.from_iterable(device.processes().values() for device in leaf_devices),
         )
 
-    devices = [device.as_snapshot() for device in devices]  # type: ignore[union-attr]
-    gpu_processes = GpuProcess.take_snapshots(gpu_processes, failsafe=True)
+    device_snapshots: list[Snapshot] = [
+        device.as_snapshot()
+        for device in devices  # type: ignore[union-attr]
+    ]
+    gpu_process_snapshots = GpuProcess.take_snapshots(gpu_processes, failsafe=True)
 
-    return SnapshotResult(devices, gpu_processes)
+    return SnapshotResult(device_snapshots, gpu_process_snapshots)
 
 
 # pylint: disable-next=too-many-arguments
@@ -216,7 +219,7 @@ def collect_in_background(
         on_start (Optional[Callable[[ResourceMetricCollector], None]]):
             A function to initialize the daemon thread and collector.
         on_stop (Optional[Callable[[ResourceMetricCollector], None]]):
-            A function that do some necessary cleanup after the daemon thread is stopped.
+            A function that does some necessary cleanup after the daemon thread is stopped.
         tag (str):
             The tag prefix used for metrics results.
         start (bool):
@@ -344,6 +347,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
             '<tag>/cuda:0 (gpu:3)/fan_speed (%)/mean': 22.0,
             '<tag>/cuda:0 (gpu:3)/temperature (C)/mean': 25.0,
             '<tag>/cuda:0 (gpu:3)/power_usage (W)/mean': 19.11166264116916,
+            '<tag>/cuda:0 (gpu:3)/power_limit (W)/mean': 250.0,
             ...,
             '<tag>/cuda:1 (gpu:2)/memory_used (MiB)/mean': 8878.875,
             ...,
@@ -379,6 +383,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
         ('fan_speed', 'fan_speed (%)', 1.0),
         ('temperature', 'temperature (C)', 1.0),
         ('power_usage', 'power_usage (W)', 1000.0),
+        ('power_limit', 'power_limit (W)', 1000.0),
     ]
 
     PROCESS_METRICS: ClassVar[list[tuple[str, str | None, str, float | int]]] = [
@@ -412,7 +417,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
         if devices is None:
             devices = Device.all()
 
-        root_pids: set[int] = {os.getpid()} if root_pids is None else set(root_pids)
+        resolved_root_pids: set[int] = {os.getpid()} if root_pids is None else set(root_pids)
 
         self.interval: float = interval
 
@@ -428,7 +433,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
             else:
                 self.leaf_devices.append(device)
 
-        self.root_pids: set[int] = root_pids
+        self.root_pids: set[int] = resolved_root_pids
         self._positive_processes: WeakSet[HostProcess] = WeakSet(
             HostProcess(pid) for pid in self.root_pids
         )
@@ -505,12 +510,12 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
                 )
 
             buffer = self._metric_buffer
-            while True:
+            while buffer is not None:
                 self._tags.remove(buffer.tag)
                 if buffer.tag == tag:
                     self._metric_buffer = buffer.prev
                     break
-                buffer = buffer.prev  # type: ignore[assignment]
+                buffer = buffer.prev
 
             if self._metric_buffer is None:
                 self._daemon_running.clear()
@@ -584,11 +589,11 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
                 )
 
             buffer = self._metric_buffer
-            while True:
+            while buffer is not None:
                 buffer.clear()
                 if buffer.tag == tag:
                     break
-                buffer = buffer.prev  # type: ignore[assignment]
+                buffer = buffer.prev
 
     reset = clear
 
@@ -670,7 +675,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
         )
 
     def __del__(self) -> None:
-        """Clean up the demon thread on destruction."""
+        """Clean up the daemon thread on destruction."""
         self._daemon_running.clear()
 
     # pylint: disable-next=too-many-branches,too-many-locals,too-many-statements
@@ -697,7 +702,7 @@ class ResourceMetricCollector:  # pylint: disable=too-many-instance-attributes
                             positive = True
                             break
                         try:
-                            p = p.parent()  # type: ignore[assignment]
+                            p = p.parent()
                         except host.PsutilError:
                             break
                     if positive:

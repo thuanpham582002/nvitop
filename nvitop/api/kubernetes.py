@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import threading
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -27,10 +28,19 @@ except ImportError:
     CoreV1Api = None
 
 
+# Tunables (environment variables)
+_ENABLED = os.getenv('NVITOP_K8S_ENABLED', '1').lower() not in {'0', 'false', 'no', 'off'}
+_NODE_NAME = os.getenv('NVITOP_K8S_NODE_NAME') or os.getenv('NODE_NAME')
+_POD_INDEX_TTL = float(os.getenv('NVITOP_K8S_POD_CACHE_TTL', '30'))
+_POD_INDEX_MIN_REFRESH = 5.0
+_REQUEST_TIMEOUT = float(os.getenv('NVITOP_K8S_REQUEST_TIMEOUT', '3'))
+
+
 __all__ = [
     'KubernetesClient',
     'KubernetesInfo',
     'extract_pod_from_pid',
+    'parse_cgroup_for_pod',
     'get_kubernetes_client',
     'get_kubernetes_info',
     'is_kubernetes_environment',
@@ -112,6 +122,41 @@ def is_kubernetes_environment() -> bool:
     return False
 
 
+_POD_UID_RE = re.compile(
+    r'pod([0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12})',
+)
+_CONTAINER_ID_RE = re.compile(r'([0-9a-f]{64})')
+
+
+def parse_cgroup_for_pod(cgroup_content: str) -> dict[str, str | None] | None:
+    """Parse the content of ``/proc/<pid>/cgroup`` and extract the pod UID and container ID.
+
+    Supports cgroup v1 and v2, the ``systemd`` and ``cgroupfs`` cgroup drivers, and the
+    containerd (``cri-containerd-<id>.scope``), CRI-O (``crio-<id>.scope``) and Docker
+    (``docker-<id>.scope`` or ``/<id>``) runtimes.
+    """
+    pod_uid: str | None = None
+    container_id: str | None = None
+    for line in cgroup_content.splitlines():
+        parts = line.strip().split(':', 2)
+        if len(parts) != 3 or 'kubepods' not in parts[2]:
+            continue
+        path = parts[2]
+        pod_match = _POD_UID_RE.search(path)
+        if pod_match:
+            pod_uid = pod_match.group(1).replace('_', '-')
+            # The container ID is the last 64-hex segment after the pod segment
+            ids = _CONTAINER_ID_RE.findall(path[pod_match.end() :])
+            if ids:
+                container_id = ids[-1]
+        if pod_uid and container_id:
+            break
+
+    if pod_uid is None:
+        return None
+    return {'container_id': container_id, 'pod_uid': pod_uid, 'pod_name': None, 'namespace': None}
+
+
 def extract_pod_from_pid(pid: int) -> dict[str, str | None] | None:
     """Extract pod and container information from process PID using /proc filesystem.
 
@@ -122,46 +167,8 @@ def extract_pod_from_pid(pid: int) -> dict[str, str | None] | None:
         Dictionary containing pod info or None if not found.
     """
     try:
-        cgroup_path = f'/proc/{pid}/cgroup'
-        if not os.path.isfile(cgroup_path):
-            return None
-
-        container_id = None
-        pod_uid = None
-        with open(cgroup_path, encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if '::' in line:
-                    _, cgroup_path = line.split('::', 1)
-                else:
-                    parts = line.split(':')
-                    if len(parts) >= 3:
-                        cgroup_path = parts[2]
-
-                if 'kubepods' in cgroup_path:
-                    # Extract pod UID using improved regex
-                    pod_uid_pattern = r'pod([a-f0-9_-]+)\.slice'
-                    pod_match = re.search(pod_uid_pattern, cgroup_path)
-                    if pod_match:
-                        pod_uid = pod_match.group(1)
-
-                    # Extract container ID using improved regex
-                    container_id_pattern = r'cri-[^-]+-([a-f0-9]{12,})'
-                    container_match = re.search(container_id_pattern, cgroup_path)
-                    if container_match:
-                        container_id = container_match.group(1)
-
-        def _create_container_info(container_id: str, pod_uid: str | None) -> dict[str, str | None]:
-            """Create container info dictionary."""
-            return {
-                'container_id': container_id,
-                'pod_uid': pod_uid,
-                'pod_name': None,
-                'namespace': None,
-            }
-
-        return None if container_id is None else _create_container_info(container_id, pod_uid)
-
+        with open(f'/proc/{pid}/cgroup', encoding='utf-8') as f:
+            return parse_cgroup_for_pod(f.read())
     except (OSError, ValueError):
         return None
 
@@ -206,6 +213,9 @@ class KubernetesClient:
             self._initialized = True
             self._k8s_loaded = False
             self._load_error: str | None = None
+            self._pod_index: dict[str, Any] = {}
+            self._index_ts: float = -1e9
+            self._index_lock = threading.Lock()
             self._setup_client()
 
     def _setup_client(self) -> None:
@@ -234,7 +244,7 @@ class KubernetesClient:
 
             self._k8s_loaded = True
 
-        except (ImportError, OSError, KeyError) as e:
+        except Exception as e:  # noqa: BLE001 # ConfigException etc. must never break the caller
             self._load_error = str(e)
             self._k8s_loaded = False
 
@@ -482,58 +492,77 @@ class KubernetesClient:
         except (ImportError, OSError, KeyError, ValueError):
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
 
-    @memoize_when_activated
-    def get_pod_by_uid(self, pod_uid: str) -> KubernetesInfo:
-        """Get pod information by UID using official Kubernetes client.
+    def _refresh_pod_index(self, force: bool = False) -> None:
+        """Refresh the local ``pod UID -> pod`` index with ONE list call scoped to this node.
+
+        The list is filtered by ``spec.nodeName`` (env ``NODE_NAME``, set via the Downward API),
+        rate-limited by ``NVITOP_K8S_POD_CACHE_TTL`` seconds and bounded by
+        ``NVITOP_K8S_REQUEST_TIMEOUT``. Errors keep the previous index and back off until the
+        next TTL, so a down or forbidden API server never blocks or crashes the collector.
+        """
+        now = time.monotonic()
+        age = now - self._index_ts
+        if age < (_POD_INDEX_MIN_REFRESH if force else _POD_INDEX_TTL):
+            return
+        self._index_ts = now
+        try:
+            _ensure_kubernetes_available()
+            api = CoreV1Api()
+            kwargs: dict[str, Any] = {'_request_timeout': _REQUEST_TIMEOUT}
+            if _NODE_NAME:
+                kwargs['field_selector'] = f'spec.nodeName={_NODE_NAME}'
+            pods = api.list_pod_for_all_namespaces(**kwargs)
+            self._pod_index = {pod.metadata.uid: pod for pod in pods.items}
+            self._load_error = None
+        except Exception as e:  # noqa: BLE001 # ApiException, urllib3 errors, timeouts
+            self._load_error = str(e)
+
+    def get_pod_by_uid(self, pod_uid: str, container_id: str | None = None) -> KubernetesInfo:
+        """Get pod information by UID from the node-scoped pod index.
 
         Args:
-            pod_uid: UID of the pod.
+            pod_uid: UID of the pod (dashes or underscores).
+            container_id: Optional container ID used to resolve the container name and the
+                per-container ``nvidia.com/gpu`` requests and limits.
 
         Returns:
-            KubernetesInfo object with pod details.
+            KubernetesInfo object with pod details (fields are ``N/A`` when unknown).
         """
         if not self.is_available:
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
 
-        try:
-            _ensure_kubernetes_available()
-
-            api = CoreV1Api()
-
-            # First try common namespaces
-            common_namespaces = ['default', 'kube-system', 'kube-public']
-            result = self._search_pods_in_namespaces(
-                api,
-                common_namespaces,
-                pod_uid,
-                convert_uid=True,
-            )
-            if result is not None:
-                return result
-
-            # If not found, try all namespaces
-            try:
-                namespaces = api.list_namespace()
-                namespace_list = [ns.metadata.name for ns in namespaces.items]
-                result = self._search_pods_in_namespaces(
-                    api,
-                    namespace_list,
-                    pod_uid,
-                    convert_uid=True,
-                )
-                if result is not None:
-                    return result
-            except (ImportError, OSError, KeyError, ValueError):
-                # Fallback to listing all pods
-                pods = api.list_pod_for_all_namespaces()
-                for pod in pods.items:
-                    pod_info = self._extract_pod_info(pod, pod_uid, convert_uid=False)
-                    if pod_info is not None:
-                        return pod_info
-
+        pod_uid = pod_uid.replace('_', '-')
+        with self._index_lock:
+            self._refresh_pod_index()
+            pod = self._pod_index.get(pod_uid)
+            if pod is None:  # new pod since last refresh
+                self._refresh_pod_index(force=True)
+                pod = self._pod_index.get(pod_uid)
+        if pod is None:
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
 
-        except (ImportError, OSError, KeyError, ValueError):
+        try:
+            container_name = (
+                self.find_container_name_by_id(pod, container_id) if container_id else None
+            )
+            gpu_requests, gpu_limits = self.extract_nvidia_gpu_resources(
+                pod.spec.to_dict(),
+                container_name=container_name,
+            )
+            return KubernetesInfo(
+                pod_name=pod.metadata.name,
+                pod_namespace=pod.metadata.namespace,
+                pod_uid=pod.metadata.uid,
+                container_name=container_name or NA,
+                container_id=container_id or NA,
+                node_name=pod.spec.node_name or NA,
+                metadata={
+                    'labels': pod.metadata.labels or {},
+                    'gpu_requests': gpu_requests,
+                    'gpu_limits': gpu_limits,
+                },
+            )
+        except Exception:  # noqa: BLE001
             return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
 
 
@@ -626,13 +655,30 @@ def get_kubernetes_client(
     )
 
 
-_container_pod_cache: dict[str, KubernetesInfo] = {}
+# container ID -> (expiry monotonic time, info). Only fully resolved entries are cached long.
+_container_pod_cache: dict[str, tuple[float, KubernetesInfo]] = {}
 _cache_lock: threading.Lock = threading.Lock()
+_CACHE_TTL_RESOLVED = 600.0
+_CACHE_TTL_UNRESOLVED = 30.0
+_CACHE_MAX_ENTRIES = 4096
+
+
+def _cache_put(container_id: str, info: KubernetesInfo, ttl: float) -> None:
+    now = time.monotonic()
+    with _cache_lock:
+        if len(_container_pod_cache) >= _CACHE_MAX_ENTRIES:
+            for key in [k for k, (exp, _) in _container_pod_cache.items() if exp < now]:
+                del _container_pod_cache[key]
+            if len(_container_pod_cache) >= _CACHE_MAX_ENTRIES:
+                _container_pod_cache.clear()
+        _container_pod_cache[container_id] = (now + ttl, info)
 
 
 @memoize_when_activated
 def get_kubernetes_info(pid: int) -> KubernetesInfo:
     """Get Kubernetes information for a given process PID.
+
+    Never raises: any failure yields ``N/A`` fields so the caller (TUI or exporter) keeps running.
 
     Args:
         pid: Process ID to get Kubernetes information for.
@@ -645,73 +691,36 @@ def get_kubernetes_info(pid: int) -> KubernetesInfo:
         return KubernetesInfo(NA, NA, NA, NA, NA, NA, NA)
 
     container_id = pod_info.get('container_id')
+    pod_uid = pod_info.get('pod_uid') or ''
+    cache_key = container_id or pod_uid
+    now = time.monotonic()
+    with _cache_lock:
+        cached = _container_pod_cache.get(cache_key)
+    if cached is not None and cached[0] > now:
+        return cached[1]
 
-    if container_id:
-        with _cache_lock:
-            if container_id in _container_pod_cache:
-                return _container_pod_cache[container_id]
-
-    client = _get_kubernetes_client()
-    pod_uid = pod_info.get('pod_uid')
-    if pod_uid and client.is_available:
-        k8s_info = client.get_pod_by_uid(pod_uid)
-
-        if container_id and container_id is not NA and k8s_info.pod_name is not NA:
-            try:
-                _ensure_kubernetes_available()
-
-                api = CoreV1Api()
-                pod = api.read_namespaced_pod(
-                    name=k8s_info.pod_name,
-                    namespace=k8s_info.pod_namespace,
-                )
-
-                container_name = client.find_container_name_by_id(pod, container_id)
-                if container_name:
-                    gpu_requests, gpu_limits = client.extract_nvidia_gpu_resources(
-                        pod.spec.to_dict(),
-                        container_name=container_name,
-                    )
-                    k8s_info = KubernetesInfo(
-                        pod_name=k8s_info.pod_name,
-                        pod_namespace=k8s_info.pod_namespace,
-                        pod_uid=k8s_info.pod_uid,
-                        container_name=container_name,
-                        container_id=k8s_info.container_id,
-                        node_name=k8s_info.node_name,
-                        metadata={
-                            'labels': k8s_info.metadata.get('labels', {})
-                            if isinstance(k8s_info.metadata, dict)
-                            else {},
-                            'gpu_requests': gpu_requests,
-                            'gpu_limits': gpu_limits,
-                        },
-                    )
-
-                if container_id:
-                    with _cache_lock:
-                        _container_pod_cache[container_id] = k8s_info
-
-            except (ImportError, OSError, KeyError, ValueError):
-                pass
-
-        if k8s_info.container_id is NA:
-            k8s_info.container_id = container_id or NA
-
-        return k8s_info
-
-    basic_info = KubernetesInfo(
-        pod_name=pod_info.get('pod_name') or NA,
-        pod_namespace=pod_info.get('namespace') or NA,
-        pod_uid=pod_info.get('pod_uid') or NA,
+    info = KubernetesInfo(
+        pod_name=NA,
+        pod_namespace=NA,
+        pod_uid=pod_uid or NA,
         container_name=NA,
         container_id=container_id or NA,
         node_name=NA,
         metadata={},
     )
+    if not _ENABLED:
+        _cache_put(cache_key, info, _CACHE_TTL_RESOLVED)
+        return info
 
-    if container_id:
-        with _cache_lock:
-            _container_pod_cache[container_id] = basic_info
+    try:
+        client = _get_kubernetes_client()
+        if client.is_available and pod_uid:
+            resolved = client.get_pod_by_uid(pod_uid, container_id)
+            if resolved.pod_name is not NA:
+                _cache_put(cache_key, resolved, _CACHE_TTL_RESOLVED)
+                return resolved
+    except Exception:  # noqa: BLE001
+        pass
 
-    return basic_info
+    _cache_put(cache_key, info, _CACHE_TTL_UNRESOLVED)
+    return info

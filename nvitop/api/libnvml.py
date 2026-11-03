@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ from typing import ClassVar as _ClassVar
 # https://pypi.org/project/nvidia-ml-py
 import pynvml as _pynvml
 from pynvml import *  # noqa: F403 # pylint: disable=wildcard-import,unused-wildcard-import
-from pynvml import nvmlDeviceGetPciInfo  # appease mypy # noqa: F401 # pylint: disable=unused-import
 
 from nvitop.api.utils import NA, UINT_MAX, ULONGLONG_MAX, NaType
 from nvitop.api.utils import colored as __colored
@@ -184,7 +183,10 @@ else:
 
 c_nvmlFieldValue_t: _TypeAlias = _pynvml.c_nvmlFieldValue_t  # noqa: PYI042
 NVML_SUCCESS: int = _pynvml.NVML_SUCCESS
+NVML_ERROR_INVALID_ARGUMENT: int = _pynvml.NVML_ERROR_INVALID_ARGUMENT
 NVML_ERROR_INSUFFICIENT_SIZE: int = _pynvml.NVML_ERROR_INSUFFICIENT_SIZE
+NVMLError_Uninitialized: _TypeAlias = _pynvml.NVMLError_Uninitialized
+NVMLError_Timeout: _TypeAlias = _pynvml.NVMLError_Timeout
 NVMLError_FunctionNotFound: _TypeAlias = _pynvml.NVMLError_FunctionNotFound
 NVMLError_GpuIsLost: _TypeAlias = _pynvml.NVMLError_GpuIsLost
 NVMLError_InvalidArgument: _TypeAlias = _pynvml.NVMLError_InvalidArgument
@@ -200,7 +202,10 @@ NVML_CLOCK_VIDEO: int = _pynvml.NVML_CLOCK_VIDEO
 NVML_TEMPERATURE_GPU: int = _pynvml.NVML_TEMPERATURE_GPU
 NVML_DRIVER_WDDM: int = _pynvml.NVML_DRIVER_WDDM
 NVML_DRIVER_WDM: int = _pynvml.NVML_DRIVER_WDM
+NVML_DRIVER_MCDM: int = getattr(_pynvml, 'NVML_DRIVER_MCDM', 2)
+NVML_MEMORY_ERROR_TYPE_CORRECTED: int = _pynvml.NVML_MEMORY_ERROR_TYPE_CORRECTED
 NVML_MEMORY_ERROR_TYPE_UNCORRECTED: int = _pynvml.NVML_MEMORY_ERROR_TYPE_UNCORRECTED
+nvmlEventTypeXidCriticalError: int = _pynvml.nvmlEventTypeXidCriticalError
 NVML_VOLATILE_ECC: int = _pynvml.NVML_VOLATILE_ECC
 NVML_COMPUTEMODE_DEFAULT: int = _pynvml.NVML_COMPUTEMODE_DEFAULT
 NVML_COMPUTEMODE_EXCLUSIVE_THREAD: int = _pynvml.NVML_COMPUTEMODE_EXCLUSIVE_THREAD
@@ -227,6 +232,13 @@ NVML_VALUE_TYPE_SIGNED_INT: int = getattr(_pynvml, 'NVML_VALUE_TYPE_SIGNED_INT',
 __flags: list[int] = []
 __initialized: bool = False
 __lock: _threading.Lock = _threading.Lock()
+__shutdown_condition: _threading.Condition = _threading.Condition()
+__active_queries: int = 0
+# Set on shutdown to stop issuing new NVML queries; stays set for the life of the process, except a
+# forked child resets it to False via `_reset_after_fork`.
+__shutting_down: bool = False
+# Whether the `atexit` shutdown hook has been registered (registered at most once per process).
+__atexit_registered: bool = False
 
 LOGGER: _logging.Logger = _logging.getLogger(__name__)
 try:
@@ -265,15 +277,93 @@ def _lazy_init() -> None:
             If cannot find function :func:`pynvml.nvmlInitWithFlags`, usually the :mod:`pynvml` module
             is overridden by other modules. Need to reinstall package ``nvidia-ml-py``.
     """
-    if __initialized:
+    global __atexit_registered  # pylint: disable=global-statement
+
+    if __initialized or __shutting_down:
         return
 
     with __lock:
-        if __initialized:
+        if __initialized or __shutting_down:
             return  # type: ignore[unreachable]
 
     nvmlInit()
-    _atexit.register(nvmlShutdown)
+
+    # Register the shutdown hook exactly once: concurrent first initialization and repeated
+    # initialization/shutdown cycles must not queue duplicate `atexit` handlers.
+    with __lock:
+        if not __atexit_registered:
+            _atexit.register(_atexit_shutdown, timeout=120.0)
+            __atexit_registered = True
+
+
+def _atexit_shutdown(timeout: float | None = None) -> None:
+    """Wait for in-flight NVML queries, then shutdown the NVML context (registered via ``atexit``).
+
+    Setting ``__shutting_down`` makes :func:`nvmlQuery` stop issuing new NVML calls, and the drain
+    loop waits for any in-flight query to finish before calling :func:`nvmlShutdown`. This keeps
+    :func:`nvmlShutdown` from freeing NVML internal state while a background thread is still inside
+    a ``libnvidia-ml`` call -- an intermittent use-after-free that segfaults on interpreter exit.
+
+    Args:
+        timeout (Optional[float]):
+            The maximum number of seconds to wait for in-flight queries to drain.
+            :data:`None` (the default) waits indefinitely. If the queries do not drain within
+            ``timeout``, :func:`nvmlShutdown` is skipped to avoid a use-after-free; the OS reclaims
+            NVML resources at process exit anyway.
+
+    .. note::
+        This only guards the implicit ``atexit`` shutdown. An explicit :func:`nvmlShutdown` call
+        (e.g. to reinitialize NVML) is unaffected and remains the caller's responsibility. The drain
+        only tracks NVML calls made through :func:`nvmlQuery`; direct :mod:`pynvml` calls are not
+        counted.
+    """
+    global __shutting_down  # pylint: disable=global-statement
+
+    if __shutting_down:
+        return
+
+    # Set the shutdown latch, then wait for in-flight queries to drain. Once `__shutting_down` is
+    # set, `nvmlQuery` starts no new NVML calls, so `__active_queries` only decreases; each decrement
+    # notifies the condition, so this blocks without polling and wakes as soon as it reaches zero.
+    with __shutdown_condition:
+        if __shutting_down:
+            return  # type: ignore[unreachable]
+        __shutting_down = True
+        drained = __shutdown_condition.wait_for(lambda: __active_queries == 0, timeout=timeout)
+
+    if drained:
+        try:
+            nvmlShutdown()
+        except NVMLError:
+            # NVML may already be torn down (e.g. via an explicit `nvmlShutdown()` call); the OS
+            # reclaims all NVML resources at process exit regardless.
+            pass
+    else:
+        # Timed out with queries still in flight: skip `nvmlShutdown()` to avoid a use-after-free.
+        # The OS reclaims all NVML resources at process exit anyway.
+        LOGGER.warning('Skipped `nvmlShutdown()` at exit: NVML queries are still in flight.')
+
+
+def _reset_after_fork() -> None:
+    """Reset the NVML shutdown-drain state in a forked child process.
+
+    ``os.fork()`` copies the module globals but leaves only the calling thread alive in the child:
+    a lock held by another thread at fork time is inherited already-locked, and ``__active_queries``
+    may count queries owned by threads that no longer exist. Rebuild the synchronization primitives
+    and zero the drain state so the child starts clean; otherwise the inherited ``atexit`` hook
+    could block for its full timeout draining phantom queries, or deadlock on an inherited-locked
+    ``Lock``.
+    """
+    global __lock, __shutdown_condition, __active_queries, __shutting_down  # pylint: disable=global-statement
+
+    __lock = _threading.Lock()
+    __shutdown_condition = _threading.Condition()
+    __active_queries = 0
+    __shutting_down = False
+
+
+if hasattr(_os, 'register_at_fork'):  # `os.register_at_fork` is unavailable on Windows (no `fork`)
+    _os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 def nvmlInit() -> None:  # pylint: disable=function-redefined
@@ -386,6 +476,7 @@ def nvmlShutdown() -> None:  # pylint: disable=function-redefined
         __initialized = len(__flags) > 0
 
 
+# pylint: disable-next=too-many-branches
 def nvmlQuery(
     func: _Callable[..., _Any] | str,
     /,
@@ -430,50 +521,81 @@ def nvmlQuery(
             If the function is not supported by the driver or the device.
         NVMLError_InvalidArgument:
             If passed with an invalid argument.
+        NVMLError_Uninitialized:
+            If a shutdown is in progress (the ``atexit`` drain latch is set) and ``ignore_errors``
+            is :data:`False`. New NVML calls are refused once shutdown begins so they cannot race
+            :func:`nvmlShutdown`.
     """
-    global UNKNOWN_FUNCTIONS  # pylint: disable=global-statement,global-variable-not-assigned
+    global UNKNOWN_FUNCTIONS, __active_queries  # pylint: disable=global-statement,global-variable-not-assigned
 
-    _lazy_init()
-
-    try:
-        if isinstance(func, str):
-            try:
-                func = getattr(__modself, func)
-            except AttributeError as e1:
-                raise NVMLError_FunctionNotFound from e1
-
-        try:
-            retval = func(*args, **kwargs)  # type: ignore[operator]
-        except UnicodeDecodeError as e2:
-            raise NVMLError_Unknown from e2
-    except NVMLError_FunctionNotFound as e3:
-        if not ignore_function_not_found:
-            identifier = (
-                func
-                if isinstance(func, str)
-                else (_inspect.getsource(func) if func.__name__ == '<lambda>' else repr(func))
-            )
-            with __lock:
-                if (
-                    identifier not in UNKNOWN_FUNCTIONS
-                    and len(UNKNOWN_FUNCTIONS) < UNKNOWN_FUNCTIONS_CACHE_SIZE
-                ):
-                    UNKNOWN_FUNCTIONS[identifier] = (func, e3)
-                    LOGGER.exception(
-                        (
-                            'ERROR: A FunctionNotFound error occurred while calling %s.\n'
-                            'Please verify whether the `nvidia-ml-py` package is '
-                            'compatible with your NVIDIA driver version.'
-                        ),
-                        f'nvmlQuery({func!r}, *args, **kwargs)',
-                    )
-        if ignore_errors or ignore_function_not_found:
-            return default
-        raise
-    except NVMLError:
+    if __shutting_down:
         if ignore_errors:
             return default
-        raise
+        raise NVMLError_Uninitialized
+
+    # Reserve an in-flight slot BEFORE any NVML-touching work (including `_lazy_init`'s `nvmlInit`)
+    # so the `atexit` drain waits for this query instead of shutting NVML down underneath it.
+    # See https://github.com/XuehaiPan/nvitop/issues/222.
+    with __shutdown_condition:
+        if __shutting_down:
+            if ignore_errors:  # type: ignore[unreachable]
+                return default
+            raise NVMLError_Uninitialized
+        __active_queries += 1
+
+    try:
+        _lazy_init()
+
+        # Re-check after `_lazy_init`: shutdown may have started while we initialized, in which case
+        # `_lazy_init` bailed and NVML is not up -- abort before calling an uninitialized function.
+        if __shutting_down:
+            if ignore_errors:  # type: ignore[unreachable]
+                return default
+            raise NVMLError_Uninitialized
+
+        try:
+            if isinstance(func, str):
+                try:
+                    func = getattr(__modself, func)
+                except AttributeError as e1:
+                    raise NVMLError_FunctionNotFound from e1
+
+            try:
+                retval = func(*args, **kwargs)
+            except UnicodeDecodeError as e2:
+                raise NVMLError_Unknown from e2
+        except NVMLError_FunctionNotFound as e3:
+            if not ignore_function_not_found:
+                identifier = (
+                    func
+                    if isinstance(func, str)
+                    else (_inspect.getsource(func) if func.__name__ == '<lambda>' else repr(func))
+                )
+                with __lock:
+                    if (
+                        identifier not in UNKNOWN_FUNCTIONS
+                        and len(UNKNOWN_FUNCTIONS) < UNKNOWN_FUNCTIONS_CACHE_SIZE
+                    ):
+                        UNKNOWN_FUNCTIONS[identifier] = (func, e3)
+                        LOGGER.exception(
+                            (
+                                'ERROR: A FunctionNotFound error occurred while calling %s.\n'
+                                'Please verify whether the `nvidia-ml-py` package is '
+                                'compatible with your NVIDIA driver version.'
+                            ),
+                            f'nvmlQuery({func!r}, *args, **kwargs)',
+                        )
+            if ignore_errors or ignore_function_not_found:
+                return default
+            raise
+        except NVMLError:
+            if ignore_errors:
+                return default
+            raise
+    finally:
+        with __shutdown_condition:
+            __active_queries -= 1
+            __shutdown_condition.notify_all()
 
     if isinstance(retval, bytes):
         retval = retval.decode('utf-8', errors='replace')
@@ -546,10 +668,13 @@ if not _pynvml_installation_corrupted:
         try:
             ptr = _nvmlGetFunctionPointer(symbol)
         except NVMLError_FunctionNotFound:
-            LOGGER.debug('Failed to found symbol `%s`.', symbol)
+            LOGGER.debug('Failed to find symbol `%s`.', symbol)
             return None
         LOGGER.debug('Found symbol `%s`.', symbol)
         return ptr
+
+    def _nvml_has_function(symbol: str) -> bool:
+        return _nvmlLookupFunctionPointer(symbol) is not None
 
     # pylint: disable-next=missing-class-docstring,too-few-public-methods,function-redefined
     class c_nvmlProcessInfo_v1_t(_PrintableStructure):
@@ -585,8 +710,14 @@ if not _pynvml_installation_corrupted:
             'usedGpuMemory': '%d B',
         }
 
+    # The official v3 struct has the same layout as v2.
+    c_nvmlProcessInfo_v3_t = c_nvmlProcessInfo_v2_t
+
+    # NVIDIA temporarily added `usedGpuCcProtectedMemory` to the v3 API, then reverted the layout
+    # when `nvmlDeviceGetRunningProcessDetailList` introduced `c_nvmlProcessDetail_v1_t`.
+    # Keep the temporary layout separate from the official v3 struct.
     # pylint: disable-next=missing-class-docstring,too-few-public-methods,function-redefined
-    class c_nvmlProcessInfo_v3_t(_PrintableStructure):
+    class c_nvmlProcessInfo_v3_legacy_t(_PrintableStructure):
         _fields_: _ClassVar[list[tuple[str, type]]] = [
             # Process ID
             ('pid', _ctypes.c_uint),
@@ -615,45 +746,36 @@ if not _pynvml_installation_corrupted:
         global __get_running_processes_version_suffix, c_nvmlProcessInfo_t  # pylint: disable=global-statement
 
         if __get_running_processes_version_suffix is None:
-            __get_running_processes_version_suffix = '_v3'
-            if _nvmlLookupFunctionPointer('nvmlDeviceGetComputeRunningProcesses_v3') is not None:
-                if (
-                    _nvmlLookupFunctionPointer('nvmlDeviceGetConfComputeMemSizeInfo') is not None
-                    and _nvmlLookupFunctionPointer('nvmlDeviceGetRunningProcessDetailList') is None
-                ):
+            if _nvml_has_function('nvmlDeviceGetComputeRunningProcesses_v3'):
+                if _nvml_has_function(
+                    'nvmlDeviceGetConfComputeMemSizeInfo',
+                ) and not _nvml_has_function('nvmlDeviceGetRunningProcessDetailList'):
+                    c_nvmlProcessInfo_t = c_nvmlProcessInfo_v3_legacy_t
                     LOGGER.debug(
-                        'NVML get running process version 3 API with v3 type struct is available.',
+                        'NVML get running process v3 API is available; using legacy struct '
+                        '`c_nvmlProcessInfo_v3_legacy_t` with `usedGpuCcProtectedMemory`.',
                     )
                 else:
-                    c_nvmlProcessInfo_t = c_nvmlProcessInfo_v2_t
+                    c_nvmlProcessInfo_t = c_nvmlProcessInfo_v3_t
                     LOGGER.debug(
-                        'NVML get running process version 3 API with v3 type struct is not '
-                        'available due to incompatible NVIDIA driver. Fallback to use get running '
-                        'process version 3 API with v2 type struct.',
+                        'NVML get running process v3 API is available; using '
+                        '`c_nvmlProcessInfo_v3_t` (same layout as `c_nvmlProcessInfo_v2_t`).',
                     )
-            else:
+                __get_running_processes_version_suffix = '_v3'
+            elif _nvml_has_function('nvmlDeviceGetComputeRunningProcesses_v2'):
+                LOGGER.debug(
+                    'NVML get running process v3 API is not available. Falling back to the v2 API '
+                    'with `c_nvmlProcessInfo_v2_t`.',
+                )
                 c_nvmlProcessInfo_t = c_nvmlProcessInfo_v2_t
                 __get_running_processes_version_suffix = '_v2'
+            else:
                 LOGGER.debug(
-                    'NVML get running process version 3 API with v3 type struct is not available '
-                    'due to incompatible NVIDIA driver. Fallback to use get running process '
-                    'version 2 API with v2 type struct.',
+                    'NVML get running process v2/v3 API is not available. Falling back to the '
+                    'unversioned (v1) API with `c_nvmlProcessInfo_v1_t`.',
                 )
-                if (
-                    _nvmlLookupFunctionPointer('nvmlDeviceGetComputeRunningProcesses_v2')
-                    is not None
-                ):
-                    LOGGER.debug(
-                        'NVML get running process version 2 API with v2 type struct is available.',
-                    )
-                else:
-                    c_nvmlProcessInfo_t = c_nvmlProcessInfo_v1_t
-                    __get_running_processes_version_suffix = ''
-                    LOGGER.debug(
-                        'NVML get running process version 2 API with v2 type struct is not '
-                        'available due to incompatible NVIDIA driver. Fallback to use get '
-                        'running process version 1 API with v1 type struct.',
-                    )
+                c_nvmlProcessInfo_t = c_nvmlProcessInfo_v1_t
+                __get_running_processes_version_suffix = ''
 
         return __get_running_processes_version_suffix
 
@@ -826,16 +948,17 @@ if not _pynvml_installation_corrupted:
         global __get_memory_info_version_suffix, c_nvmlMemory_t  # pylint: disable=global-statement
 
         if __get_memory_info_version_suffix is None:
-            __get_memory_info_version_suffix = '_v2'
-            if _nvmlLookupFunctionPointer('nvmlDeviceGetMemoryInfo_v2') is not None:
+            if _nvml_has_function('nvmlDeviceGetMemoryInfo_v2'):
                 LOGGER.debug('NVML get memory info version 2 is available.')
+                c_nvmlMemory_t = c_nvmlMemory_v2_t
+                __get_memory_info_version_suffix = '_v2'
             else:
-                c_nvmlMemory_t = c_nvmlMemory_v1_t
-                __get_memory_info_version_suffix = ''
                 LOGGER.debug(
                     'NVML get memory info version 2 API is not available due to incompatible '
                     'NVIDIA driver. Fallback to use NVML get memory info version 1 API.',
                 )
+                c_nvmlMemory_t = c_nvmlMemory_v1_t
+                __get_memory_info_version_suffix = ''
 
         return __get_memory_info_version_suffix
 
@@ -890,6 +1013,66 @@ else:
         '`nvidia-ml-py` via `pip3 install --force-reinstall nvidia-ml-py nvitop`.',
     )
 
+# Patch function `nvmlDeviceGetFieldValues`
+if not _pynvml_installation_corrupted:
+
+    def nvmlDeviceGetFieldValues(  # pylint: disable=function-redefined
+        handle: c_nvmlDevice_t,
+        fieldIds: list[int | tuple[int, int]],
+    ) -> _ctypes.Array[c_nvmlFieldValue_t]:
+        """Retrieve values for a list of fields for the device.
+
+        Note:
+            - Multiple fields can be queried at once. Fields served by the same driver call are
+              queried together to avoid separate calls for each field.
+            - Each entry in ``fieldIds`` is a field ID or a ``(fieldId, scopeId)`` pair. The meaning
+              of ``scopeId`` depends on the field, such as a link ID for NVLink throughput counters.
+            - The returned array contains one entry per requested field, in the same order. Check
+              each entry's ``nvmlReturn`` before reading its ``value``, which is valid only when
+              ``nvmlReturn`` is :data:`NVML_SUCCESS`.
+
+        Raises:
+            NVMLError_Uninitialized:
+                If NVML was not first initialized with :func:`nvmlInit`.
+            NVMLError_NoPermission:
+                If the user doesn't have permission to perform this operation.
+            NVMLError_InvalidArgument:
+                If device is invalid or ``fieldIds`` is empty.
+            NVMLError_GpuIsLost:
+                If the target GPU has fallen off the bus or is otherwise inaccessible.
+            NVMLError_Unknown:
+                On any unexpected error.
+        """
+        count = len(fieldIds)
+        values = (c_nvmlFieldValue_t * (count + 1))()
+        # NVML may access one entry past the requested count during NVLink queries.
+        # Only the extra guard needs an error status; initializing all entries is defensive.
+        for value in values:
+            value.nvmlReturn = NVML_ERROR_INVALID_ARGUMENT
+
+        for index, field_id in enumerate(fieldIds):
+            try:
+                values[index].fieldId, values[index].scopeId = field_id  # type: ignore[misc]
+            except TypeError:  # noqa: PERF203
+                values[index].fieldId = field_id
+
+        fn = _nvmlGetFunctionPointer('nvmlDeviceGetFieldValues')
+        ret = fn(handle, _ctypes.c_int32(count), _ctypes.byref(values))
+        if ret != NVML_SUCCESS:
+            raise NVMLError(ret)
+
+        # The view retains the padded allocation without exposing the guard to callers.
+        return (c_nvmlFieldValue_t * count).from_buffer(values)
+
+else:
+    LOGGER.warning(
+        'Your installed package `nvidia-ml-py` is corrupted. '
+        'Skip patch function `nvmlDeviceGetFieldValues`. '
+        'NVLink throughput queries may access memory out of bounds, '
+        'causing memory corruption or process crashes. Please reinstall package '
+        '`nvidia-ml-py` via `python3 -m pip install --force-reinstall nvidia-ml-py nvitop`.',
+    )
+
 # Patch function `nvmlDeviceGetTemperature`
 if not _pynvml_installation_corrupted:
     # pylint: disable-next=missing-class-docstring,too-few-public-methods,function-redefined
@@ -915,15 +1098,15 @@ if not _pynvml_installation_corrupted:
         global __get_temperature_version_suffix  # pylint: disable=global-statement
 
         if __get_temperature_version_suffix is None:
-            __get_temperature_version_suffix = 'V'
-            if _nvmlLookupFunctionPointer('nvmlDeviceGetTemperatureV') is not None:
+            if _nvml_has_function('nvmlDeviceGetTemperatureV'):
                 LOGGER.debug('NVML get temperature version 1 API is available.')
+                __get_temperature_version_suffix = 'V'
             else:
-                __get_temperature_version_suffix = ''
                 LOGGER.debug(
                     'NVML get temperature version 1 API is not available due to incompatible '
                     'NVIDIA driver. Fallback to use NVML get temperature API without version.',
                 )
+                __get_temperature_version_suffix = ''
 
         return __get_temperature_version_suffix
 
@@ -974,6 +1157,102 @@ else:
     LOGGER.warning(
         'Your installed package `nvidia-ml-py` is corrupted. '
         'Skip patch functions `nvmlDeviceGetTemperature`. '
+        'You may get incorrect or incomplete results. Please consider reinstall package '
+        '`nvidia-ml-py` via `pip3 install --force-reinstall nvidia-ml-py nvitop`.',
+    )
+
+# Patch function `nvmlDeviceGetDriverModel`
+# Since `nvidia-ml-py` 13.595.45, `nvmlDeviceGetDriverModel` dispatches to `_v2` which calls the
+# C function `nvmlDeviceGetDriverModel_v2`. Older drivers may not have this symbol.
+if not _pynvml_installation_corrupted:
+    __get_driver_model_version_suffix: str | None = None
+
+    def __determine_get_driver_model_version_suffix() -> str:
+        global __get_driver_model_version_suffix  # pylint: disable=global-statement
+
+        if __get_driver_model_version_suffix is None:
+            if _nvml_has_function('nvmlDeviceGetDriverModel_v2'):
+                LOGGER.debug('NVML get driver model version 2 API is available.')
+                __get_driver_model_version_suffix = '_v2'
+            else:
+                LOGGER.debug(
+                    'NVML get driver model version 2 API is not available due to incompatible '
+                    'NVIDIA driver. Fallback to use NVML get driver model version 1 API.',
+                )
+                __get_driver_model_version_suffix = ''
+
+        return __get_driver_model_version_suffix
+
+    def nvmlDeviceGetDriverModel(  # pylint: disable=function-redefined
+        handle: c_nvmlDevice_t,
+    ) -> list[int]:
+        """Retrieve the driver model (WDDM or WDM/TCC) for the device.
+
+        Returns a list of two values: [current driver model, pending driver model].
+
+        Raises:
+            NVMLError_Uninitialized:
+                If NVML was not first initialized with :func:`nvmlInit`.
+            NVMLError_InvalidArgument:
+                If device is invalid.
+            NVMLError_GpuIsLost:
+                If the target GPU has fallen off the bus or is otherwise inaccessible.
+            NVMLError_NotSupported:
+                If the device does not support this feature (e.g. on Linux).
+            NVMLError_Unknown:
+                On any unexpected error.
+        """
+        version_suffix = __determine_get_driver_model_version_suffix()
+        c_curr_model = _ctypes.c_uint()
+        c_pending_model = _ctypes.c_uint()
+        fn = _nvmlGetFunctionPointer(f'nvmlDeviceGetDriverModel{version_suffix}')
+        ret = fn(handle, _ctypes.byref(c_curr_model), _ctypes.byref(c_pending_model))
+        if ret != NVML_SUCCESS:
+            raise NVMLError(ret)
+        return [c_curr_model.value, c_pending_model.value]
+
+    def nvmlDeviceGetCurrentDriverModel(  # pylint: disable=function-redefined
+        handle: c_nvmlDevice_t,
+    ) -> int:
+        """Retrieve the current driver model (WDDM or WDM/TCC) for the device.
+
+        Raises:
+            NVMLError_Uninitialized:
+                If NVML was not first initialized with :func:`nvmlInit`.
+            NVMLError_InvalidArgument:
+                If device is invalid.
+            NVMLError_GpuIsLost:
+                If the target GPU has fallen off the bus or is otherwise inaccessible.
+            NVMLError_NotSupported:
+                If the device does not support this feature (e.g. on Linux).
+            NVMLError_Unknown:
+                On any unexpected error.
+        """
+        return nvmlDeviceGetDriverModel(handle)[0]
+
+    def nvmlDeviceGetPendingDriverModel(  # pylint: disable=function-redefined
+        handle: c_nvmlDevice_t,
+    ) -> int:
+        """Retrieve the pending driver model (WDDM or WDM/TCC) for the device.
+
+        Raises:
+            NVMLError_Uninitialized:
+                If NVML was not first initialized with :func:`nvmlInit`.
+            NVMLError_InvalidArgument:
+                If device is invalid.
+            NVMLError_GpuIsLost:
+                If the target GPU has fallen off the bus or is otherwise inaccessible.
+            NVMLError_NotSupported:
+                If the device does not support this feature (e.g. on Linux).
+            NVMLError_Unknown:
+                On any unexpected error.
+        """
+        return nvmlDeviceGetDriverModel(handle)[1]
+
+else:
+    LOGGER.warning(
+        'Your installed package `nvidia-ml-py` is corrupted. '
+        'Skip patch functions `nvmlDeviceGetDriverModel`. '
         'You may get incorrect or incomplete results. Please consider reinstall package '
         '`nvidia-ml-py` via `pip3 install --force-reinstall nvidia-ml-py nvitop`.',
     )

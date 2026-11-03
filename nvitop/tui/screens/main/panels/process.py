@@ -18,6 +18,9 @@ from nvitop.tui.library import (
     IS_WINDOWS,
     IS_WSL,
     LARGE_INTEGER,
+    SIGNAL_HINT_BLANK,
+    SIGNAL_HINT_KEY_SPANS,
+    SIGNAL_HINT_TEXT,
     USER_CONTEXT,
     USERNAME,
     Device,
@@ -143,7 +146,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
                 ),
                 reverse=True,
                 offset=34,
-                column='SM',
+                column='SM',  # remove the `%` suffix to make room for the sort indicator
                 previous='gpu_memory',
                 next='gpu_memory_utilization',
                 bind_key='s',
@@ -159,7 +162,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
                 ),
                 reverse=True,
                 offset=38,
-                column='GMBW',
+                column='GMBW',  # remove the `%` suffix to make room for the sort indicator
                 previous='sm_utilization',
                 next='cpu_percent',
                 bind_key='b',
@@ -174,7 +177,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
                 ),
                 reverse=True,
                 offset=44,
-                column='%CPU',
+                column='CPU%',
                 previous='gpu_memory_utilization',
                 next='memory_percent',
                 bind_key='c',
@@ -189,7 +192,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
                 ),
                 reverse=True,
                 offset=50,
-                column='%MEM',
+                column='MEM%',
                 previous='cpu_percent',
                 next='time',
                 bind_key='m',
@@ -231,7 +234,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
 
         self.filters: list[Callable[[Snapshot], bool] | None] = [None, *filters]
 
-        self.host_headers: list[str] = ['%CPU', '%MEM', 'TIME', 'COMMAND']
+        self.host_headers: list[str] = ['CPU%', 'MEM%', 'TIME', 'COMMAND']
 
         self.selection: Selection = Selection(self)
         self.host_offset: int = -1
@@ -359,7 +362,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
     def take_snapshots(self) -> list[Snapshot]:
         snapshots = GpuProcess.take_snapshots(self.processes, failsafe=True)
         for condition in self.filters:
-            snapshots = filter(condition, snapshots)  # type: ignore[assignment]
+            snapshots = filter(condition, snapshots)
         snapshots = list(snapshots)
 
         time_length = max(4, max((len(p.running_time_human) for p in snapshots), default=4))
@@ -396,7 +399,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
         header = [
             '╒' + '═' * (self.width - 2) + '╕',
             '│ {} │'.format('Processes:'.ljust(self.width - 4)),
-            r'│ GPU     PID      USER  GPU-MEM %SM %GMBW  {} │'.format(
+            r'│ GPU     PID      USER  GPU-MEM SM% GMBW%  {} │'.format(
                 '  '.join(pod_headers).ljust(self.width - 46),
             ),
             '╞' + '═' * (self.width - 2) + '╡',
@@ -487,7 +490,7 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
                     attr='bold',
                 )
 
-        self.addstr(self.y + 3, self.x + 1, r' GPU     PID      USER  GPU-MEM %SM %GMBW  ')
+        self.addstr(self.y + 3, self.x + 1, r' GPU     PID      USER  GPU-MEM SM% GMBW%  ')
         host_offset = max(self.host_offset, 0)
         command_offset = max(14 + len(self.host_headers[-2]) - host_offset, 0)
         if command_offset > 0:
@@ -639,19 +642,25 @@ class ProcessPanel(BaseSelectablePanel):  # pylint: disable=too-many-instance-at
             message = ' No running processes found{} '.format(' (in WSL)' if IS_WSL else '')
             self.addstr(self.y + 5, self.x, f'│ {message.ljust(self.width - 4)} │')
 
-        text_offset = self.x + self.width - 47
-        if len(self.selection.tagged) > 0 or (
-            self.selection.owned() and self.selection.within_window
-        ):
-            self.addstr(self.y, text_offset, '(Press ^C(INT)/T(TERM)/K(KILL) to send signals)')
-            self.color_at(self.y, text_offset + 7, width=2, fg='magenta', attr='bold | italic')
-            self.color_at(self.y, text_offset + 10, width=3, fg='red', attr='bold')
-            self.color_at(self.y, text_offset + 15, width=1, fg='magenta', attr='bold | italic')
-            self.color_at(self.y, text_offset + 17, width=4, fg='red', attr='bold')
-            self.color_at(self.y, text_offset + 23, width=1, fg='magenta', attr='bold | italic')
-            self.color_at(self.y, text_offset + 25, width=4, fg='red', attr='bold')
-        else:
-            self.addstr(self.y, text_offset, ' ' * 47)
+        if self.root.readonly:
+            return
+        text_offset = self.x + self.width - len(SIGNAL_HINT_TEXT)
+        if not self.selection.has_actionable_processes():
+            self.addstr(self.y, text_offset, SIGNAL_HINT_BLANK)
+            return
+
+        self.addstr(self.y, text_offset, SIGNAL_HINT_TEXT)
+        for kind, dx, width in SIGNAL_HINT_KEY_SPANS:
+            if kind == 'key':
+                self.color_at(
+                    self.y,
+                    text_offset + dx,
+                    width=width,
+                    fg='magenta',
+                    attr='bold | italic',
+                )
+            else:
+                self.color_at(self.y, text_offset + dx, width=width, fg='red', attr='bold')
 
     def finalize(self) -> None:
         self.y_mouse = None

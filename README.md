@@ -6,7 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/nvitop?label=pypi&logo=pypi)](https://pypi.org/project/nvitop)
 [![conda-forge](https://img.shields.io/conda/vn/conda-forge/nvitop?label=conda&logo=condaforge)](https://anaconda.org/conda-forge/nvitop)
 [![Documentation Status](https://img.shields.io/readthedocs/nvitop?label=docs&logo=readthedocs)](https://nvitop.readthedocs.io)
-[![Downloads](https://static.pepy.tech/personalized-badge/nvitop?period=total&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/nvitop)
+[![Downloads](https://static.pepy.tech/personalized-badge/nvitop?period=total&left_color=gray&right_color=blue&left_text=downloads)](https://pepy.tech/project/nvitop)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/XuehaiPan/nvitop?label=stars&logo=github&color=brightgreen)](https://github.com/XuehaiPan/nvitop/stargazers)
 [![License](https://img.shields.io/github/license/XuehaiPan/nvitop?label=license&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjZmZmZmZmIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xMi43NSAyLjc1YS43NS43NSAwIDAwLTEuNSAwVjQuNUg5LjI3NmExLjc1IDEuNzUgMCAwMC0uOTg1LjMwM0w2LjU5NiA1Ljk1N0EuMjUuMjUgMCAwMTYuNDU1IDZIMi4zNTNhLjc1Ljc1IDAgMTAwIDEuNUgzLjkzTC41NjMgMTUuMThhLjc2Mi43NjIgMCAwMC4yMS44OGMuMDguMDY0LjE2MS4xMjUuMzA5LjIyMS4xODYuMTIxLjQ1Mi4yNzguNzkyLjQzMy42OC4zMTEgMS42NjIuNjIgMi44NzYuNjJhNi45MTkgNi45MTkgMCAwMDIuODc2LS42MmMuMzQtLjE1NS42MDYtLjMxMi43OTItLjQzMy4xNS0uMDk3LjIzLS4xNTguMzEtLjIyM2EuNzUuNzUgMCAwMC4yMDktLjg3OEw1LjU2OSA3LjVoLjg4NmMuMzUxIDAgLjY5NC0uMTA2Ljk4NC0uMzAzbDEuNjk2LTEuMTU0QS4yNS4yNSAwIDAxOS4yNzUgNmgxLjk3NXYxNC41SDYuNzYzYS43NS43NSAwIDAwMCAxLjVoMTAuNDc0YS43NS43NSAwIDAwMC0xLjVIMTIuNzVWNmgxLjk3NGMuMDUgMCAuMS4wMTUuMTQuMDQzbDEuNjk3IDEuMTU0Yy4yOS4xOTcuNjMzLjMwMy45ODQuMzAzaC44ODZsLTMuMzY4IDcuNjhhLjc1Ljc1IDAgMDAuMjMuODk2Yy4wMTIuMDA5IDAgMCAuMDAyIDBhMy4xNTQgMy4xNTQgMCAwMC4zMS4yMDZjLjE4NS4xMTIuNDUuMjU2Ljc5LjRhNy4zNDMgNy4zNDMgMCAwMDIuODU1LjU2OCA3LjM0MyA3LjM0MyAwIDAwMi44NTYtLjU2OWMuMzM4LS4xNDMuNjA0LS4yODcuNzktLjM5OWEzLjUgMy41IDAgMDAuMzEtLjIwNi43NS43NSAwIDAwLjIzLS44OTZMMjAuMDcgNy41aDEuNTc4YS43NS43NSAwIDAwMC0xLjVoLTQuMTAyYS4yNS4yNSAwIDAxLS4xNC0uMDQzbC0xLjY5Ny0xLjE1NGExLjc1IDEuNzUgMCAwMC0uOTg0LS4zMDNIMTIuNzVWMi43NXpNMi4xOTMgMTUuMTk4YTUuNDE4IDUuNDE4IDAgMDAyLjU1Ny42MzUgNS40MTggNS40MTggMCAwMDIuNTU3LS42MzVMNC43NSA5LjM2OGwtMi41NTcgNS44M3ptMTQuNTEtLjAyNGMuMDgyLjA0LjE3NC4wODMuMjc1LjEyNi41My4yMjMgMS4zMDUuNDUgMi4yNzIuNDVhNS44NDYgNS44NDYgMCAwMDIuNTQ3LS41NzZMMTkuMjUgOS4zNjdsLTIuNTQ3IDUuODA3eiI+PC9wYXRoPjwvc3ZnPgo=)](#license)
 
@@ -42,10 +42,6 @@ An interactive NVIDIA-GPU process viewer and beyond, the one-stop solution for G
     - [Command Line Options and Environment Variables](#command-line-options-and-environment-variables)
     - [Keybindings for Monitor Mode](#keybindings-for-monitor-mode)
   - [CUDA Visible Devices Selection Tool](#cuda-visible-devices-selection-tool)
-  - [Callback Functions for Machine Learning Frameworks (DEPRECATED)](#callback-functions-for-machine-learning-frameworks-deprecated)
-    - [Callback for TensorFlow (Keras)](#callback-for-tensorflow-keras)
-    - [Callback for PyTorch Lightning](#callback-for-pytorch-lightning)
-    - [TensorBoard Integration](#tensorboard-integration)
   - [More than a Monitor](#more-than-a-monitor)
     - [Quick Start](#quick-start)
     - [Status Snapshot](#status-snapshot)
@@ -131,8 +127,11 @@ git clone --depth=1 https://github.com/XuehaiPan/nvitop.git && cd nvitop
 # Optional for SSH users
 sudo chvt 3  # or use keyboard shortcut: Ctrl-LeftAlt-F3
 
-bash install-nvidia-driver.sh --package=nvidia-driver-470  # install the R470 driver from ppa:graphics-drivers
+bash install-nvidia-driver.sh --package=nvidia-driver-595  # install the R595 driver from ppa:graphics-drivers
 bash install-nvidia-driver.sh --latest                     # install the latest driver from ppa:graphics-drivers
+bash install-nvidia-driver.sh --latest --open              # install the latest open-kernel-module driver
+bash install-nvidia-driver.sh --latest --server            # install the latest server driver
+bash install-nvidia-driver.sh --latest --server --open     # install the latest server open-kernel-module driver
 ```
 
 <p align="center">
@@ -142,6 +141,10 @@ bash install-nvidia-driver.sh --latest                     # install the latest 
 </p>
 
 Run `bash install-nvidia-driver.sh --help` for more information.
+
+The installer preserves the installed driver's standard/server family and proprietary/open kernel-module flavor by default. Use `--server` to select server packages; without `--latest`, it selects the server counterpart of the installed major version. With `--package=PKG`, the family is detected from the package name, so this option can also switch back to a standard driver. `--upgrade-only` keeps the installed package and rejects family or flavor changes.
+
+The installer stops active `nvidia-dcgm`, `nvidia-fabricmanager`, and `nvidia-persistenced` services alongside display manager services before unloading the driver. Services stopped by the installer are restarted on completion, failure, or interruption; missing or inactive services are skipped.
 
 <a name="curses">*</a> The `curses` library is a built-in module of Python on Unix-like systems, and it is supported by a third-party package called `windows-curses` on Windows using PDCurses. Inconsistent behavior of `nvitop` may occur on different terminal emulators on Windows, such as missing mouse support.
 
@@ -205,18 +208,17 @@ Install from conda-forge ([![conda-forge](https://img.shields.io/conda/v/conda-f
 conda install -c conda-forge nvitop
 ```
 
-Install the latest version from GitHub (![Commit Count](https://img.shields.io/github/commits-since/XuehaiPan/nvitop/v1.6.0)):
+Install the latest version from GitHub (![Commit Count](https://img.shields.io/github/commits-since/XuehaiPan/nvitop/v1.7.2)):
 
 ```bash
 pip3 install --upgrade pip setuptools
-pip3 install git+https://github.com/XuehaiPan/nvitop.git#egg=nvitop
+pip3 install git+https://github.com/XuehaiPan/nvitop.git
 ```
 
 Or, clone this repo and install manually:
 
 ```bash
-git clone --depth=1 https://github.com/XuehaiPan/nvitop.git
-cd nvitop
+git clone --depth=1 https://github.com/XuehaiPan/nvitop.git && cd nvitop
 pip3 install .
 ```
 
@@ -295,6 +297,8 @@ You can configure the default monitor mode with the `NVITOP_MONITOR_MODE` enviro
 
 In monitor mode, you can use <kbd>Ctrl-c</kbd> / <kbd>T</kbd> / <kbd>K</kbd> keys to interrupt / terminate / kill a process. And it's recommended to *terminate* or *kill* a process in the **tree-view screen** (shortcut: <kbd>t</kbd>). For normal users, `nvitop` will shallow other users' processes (in low-intensity colors). For **system administrators**, you can use `sudo nvitop` to terminate other users' processes.
 
+To run `nvitop` as a viewer only and disable all process-mutating shortcuts, pass `--readonly` (or set `NVITOP_MONITOR_MODE="readonly"`). The signal keys above become no-ops, the on-screen "Press ^C(INT)/T(TERM)/K(KILL) to send signals" hint is hidden, and the corresponding rows in the help screen are dimmed. Use this when sharing a session over SSH, demoing on a multi-tenant box, or wrapping `nvitop` in a non-admin alias.
+
 Also, to enter the process metrics screen, select a process and then press the <kbd>Enter</kbd> / <kbd>Return</kbd> key . `nvitop` dynamically displays the process metrics with live graphs.
 
 <p align="center">
@@ -361,16 +365,26 @@ spec:
         name: nvitop
     spec:
       serviceAccountName: nvitop
-      hostPID: true
+      hostPID: true            # required: NVML reports host PIDs, /proc/<pid>/cgroup must be visible
+      runtimeClassName: nvidia
       tolerations:
       - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
       containers:
-      - name: nvitop
-        image: nvitop:latest
-        command: ["sleep", "infinity"]
-  runtimeClassName: nvidia
+      - name: nvitop-exporter
+        image: nvitop-exporter:1.7.2-k8s
+        args: ["--bind-address", "0.0.0.0", "--port", "5050", "--interval", "5"]
+        env:
+        - name: NODE_NAME      # scopes the single pod list call to this node
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        # Optional tunables: NVITOP_K8S_ENABLED (1), NVITOP_K8S_POD_CACHE_TTL (30 s),
+        # NVITOP_K8S_REQUEST_TIMEOUT (3 s)
+        ports:
+        - containerPort: 5050
+          name: metrics
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -385,7 +399,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -483,11 +497,11 @@ Type `nvitop --help` for more command options:
 
 ```text
 usage: nvitop [--help] [--version] [--once | --monitor [{auto,full,compact}]]
-              [--interval SEC] [--ascii] [--colorful] [--force-color] [--light]
-              [--gpu-util-thresh th1 th2] [--mem-util-thresh th1 th2]
-              [--only INDEX [INDEX ...]] [--only-visible]
-              [--compute] [--only-compute] [--graphics] [--only-graphics]
-              [--user [USERNAME ...]] [--pid PID [PID ...]]
+              [--interval SEC] [--no-unicode] [--readonly] [--colorful]
+              [--force-color] [--light] [--gpu-util-thresh th1 th2]
+              [--mem-util-thresh th1 th2] [--only INDEX [INDEX ...]]
+              [--only-visible] [--compute] [--only-compute] [--graphics]
+              [--only-graphics] [--user [USERNAME ...]] [--pid PID [PID ...]]
 
 An interactive NVIDIA-GPU process viewer.
 
@@ -495,19 +509,22 @@ options:
   --help, -h            Show this help message and exit.
   --version, -V         Show nvitop's version number and exit.
   --once, -1            Report query data only once.
-  --monitor [{auto,full,compact}], -m [{auto,full,compact}]
+  --monitor, -m [{auto,full,compact}]
                         Run as a resource monitor. Continuously report query data and handle user inputs.
                         If the argument is omitted, the value from `NVITOP_MONITOR_MODE` will be used.
                         (default fallback mode: auto)
   --interval SEC        Process status update interval in seconds. (default: 2)
-  --ascii, --no-unicode, -U
+  --no-unicode, --ascii, -U
                         Use ASCII characters only, which is useful for terminals without Unicode support.
+  --readonly            Disable all system and process changing features (e.g., terminating processes).
+                        Set variable `NVITOP_MONITOR_MODE="readonly"` for convenience.
 
 coloring:
-  --colorful            Use gradient colors to get spectrum-like bar charts. This option is only available
-                        when the terminal supports 256 colors. You may need to set environment variable
-                        `TERM="xterm-256color"`. Note that the terminal multiplexer, such as `tmux`, may
-                        override the `TREM` variable.
+  --colorful            Use gradient colors to get spectrum-like bar charts.
+                        Set variable `NVITOP_MONITOR_MODE="colorful"` for convenience.
+                        This option is only available when the terminal supports 256 colors.
+                        You may need to set environment variable `TERM="xterm-256color"`. Note that the
+                        terminal multiplexer, such as `tmux`, may override the `TERM` variable.
   --force-color         Force colorize even when `stdout` is not a TTY terminal.
   --light               Tweak visual results for light theme terminals in monitor mode.
                         Set variable `NVITOP_MONITOR_MODE="light"` on light terminals for convenience.
@@ -521,7 +538,7 @@ coloring:
                         ( 1 <= th1 < th2 <= 99, defaults: 10 80 )
 
 device filtering:
-  --only INDEX [INDEX ...], -o INDEX [INDEX ...]
+  --only, -o INDEX [INDEX ...]
                         Only show the specified devices, suppress option `--only-visible`.
   --only-visible, -ov   Only show devices in the `CUDA_VISIBLE_DEVICES` environment variable.
 
@@ -530,20 +547,20 @@ process filtering:
   --only-compute, -C    Only show GPU processes exactly with the compute context. (type: 'C' only)
   --graphics, -g        Only show GPU processes with the graphics context. (type: 'G' or 'C+G')
   --only-graphics, -G   Only show GPU processes exactly with the graphics context. (type: 'G' only)
-  --user [USERNAME ...], -u [USERNAME ...]
+  --user, -u [USERNAME ...]
                         Only show processes of the given users (or `$USER` for no argument).
-  --pid PID [PID ...], -p PID [PID ...]
+  --pid, -p PID [PID ...]
                         Only show processes of the given PIDs.
 ```
 
 `nvitop` can accept the following environment variables for monitor mode:
 
-| Name                                   | Description                                         | Valid Values                                                            | Default Value     |
-| -------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------- | ----------------- |
-| `NVITOP_MONITOR_MODE`                  | The default display mode (a comma-separated string) | `auto` / `full` / `compact`<br>`plain` / `colorful`<br>`dark` / `light` | `auto,plain,dark` |
-| `NVITOP_GPU_UTILIZATION_THRESHOLDS`    | Thresholds of GPU utilization                       | `10,75` , `1,99`, ...                                                   | `10,75`           |
-| `NVITOP_MEMORY_UTILIZATION_THRESHOLDS` | Thresholds of GPU memory percent                    | `10,80` , `1,99`, ...                                                   | `10,80`           |
-| `LOGLEVEL`                             | Log level for log messages                          | `DEBUG` , `INFO`, `WARNING`, ...                                        | `WARNING`         |
+| Name                                   | Description                                         | Valid Values                                                                                                                | Default Value     |
+| -------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `NVITOP_MONITOR_MODE`                  | The default display mode (a comma-separated string) | `auto` / `full` / `compact`<br>`plain` / `colorful`<br>`dark` / `light`<br>`readonly` (disables process-mutating shortcuts) | `auto,plain,dark` |
+| `NVITOP_GPU_UTILIZATION_THRESHOLDS`    | Thresholds of GPU utilization                       | `10,75` , `1,99`, ...                                                                                                       | `10,75`           |
+| `NVITOP_MEMORY_UTILIZATION_THRESHOLDS` | Thresholds of GPU memory percent                    | `10,80` , `1,99`, ...                                                                                                       | `10,80`           |
+| `LOGLEVEL`                             | Log level for log messages                          | `DEBUG` , `INFO`, `WARNING`, ...                                                                                            | `WARNING`         |
 
 For example:
 
@@ -573,41 +590,41 @@ echo 'set -gx NVITOP_MONITOR_MODE "full"' >> ~/.config/fish/config.fish
 
 #### Keybindings for Monitor Mode
 
-|                                                                        Key | Binding                                                                              |
-| -------------------------------------------------------------------------: | :----------------------------------------------------------------------------------- |
-|                                                                        `q` | Quit and return to the terminal.                                                     |
-|                                                                  `h` / `?` | Go to the help screen.                                                               |
-|                                                            `a` / `f` / `c` | Change the display mode to *auto* / *full* / *compact*.                              |
-|                                                     `r` / `<C-r>` / `<F5>` | Force refresh the window.                                                            |
-|                                                                            |                                                                                      |
-| `<Up>` / `<Down>`<br>`<A-k>` / `<A-j>`<br>`<Tab>` / `<S-Tab>`<br>`<Wheel>` | Select and highlight a process.                                                      |
-|                   `<Left>` / `<Right>`<br>`<A-h>` / `<A-l>`<br>`<S-Wheel>` | Scroll the host information of processes.                                            |
-|                                                                   `<Home>` | Select the first process.                                                            |
-|                                                                    `<End>` | Select the last process.                                                             |
-|                                                             `<C-a>`<br>`^` | Scroll left to the beginning of the process entry (i.e. beginning of line).          |
-|                                                             `<C-e>`<br>`$` | Scroll right to the end of the process entry (i.e. end of line).                     |
-|              `<PageUp>` / `<PageDown>`<br/> `<A-K>` / `<A-J>`<br>`[` / `]` | scroll entire screen (for large amounts of processes).                               |
-|                                                                            |                                                                                      |
-|                                                                  `<Space>` | Tag/untag current process.                                                           |
-|                                                                    `<Esc>` | Clear process selection.                                                             |
-|                                                             `<C-c>`<br>`I` | Send `signal.SIGINT` to the selected process (interrupt).                            |
-|                                                                        `T` | Send `signal.SIGTERM` to the selected process (terminate).                           |
-|                                                                        `K` | Send `signal.SIGKILL` to the selected process (kill).                                |
-|                                                                            |                                                                                      |
-|                                                                        `e` | Show process environment.                                                            |
-|                                                                        `t` | Toggle tree-view screen.                                                             |
-|                                                                  `<Enter>` | Show process metrics.                                                                |
-|                                                                            |                                                                                      |
-|                                                                  `,` / `.` | Select the sort column.                                                              |
-|                                                                        `/` | Reverse the sort order.                                                              |
-|                                                                `on` (`oN`) | Sort processes in the natural order, i.e., in ascending (descending) order of `GPU`. |
-|                                                                `ou` (`oU`) | Sort processes by `USER` in ascending (descending) order.                            |
-|                                                                `op` (`oP`) | Sort processes by `PID` in descending (ascending) order.                             |
-|                                                                `og` (`oG`) | Sort processes by `GPU-MEM` in descending (ascending) order.                         |
-|                                                                `os` (`oS`) | Sort processes by `%SM` in descending (ascending) order.                             |
-|                                                                `oc` (`oC`) | Sort processes by `%CPU` in descending (ascending) order.                            |
-|                                                                `om` (`oM`) | Sort processes by `%MEM` in descending (ascending) order.                            |
-|                                                                `ot` (`oT`) | Sort processes by `TIME` in descending (ascending) order.                            |
+|                                                                        Key | Binding                                                                                    |
+| -------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------- |
+|                                                                        `q` | Quit and return to the terminal.                                                           |
+|                                                                  `h` / `?` | Go to the help screen.                                                                     |
+|                                                            `a` / `f` / `c` | Change the display mode to *auto* / *full* / *compact*.                                    |
+|                                                     `r` / `<C-r>` / `<F5>` | Force refresh the window.                                                                  |
+|                                                                            |                                                                                            |
+| `<Up>` / `<Down>`<br>`<A-k>` / `<A-j>`<br>`<Tab>` / `<S-Tab>`<br>`<Wheel>` | Select and highlight a process.                                                            |
+|                   `<Left>` / `<Right>`<br>`<A-h>` / `<A-l>`<br>`<S-Wheel>` | Scroll the host information of processes.                                                  |
+|                                                                   `<Home>` | Select the first process.                                                                  |
+|                                                                    `<End>` | Select the last process.                                                                   |
+|                                                             `<C-a>`<br>`^` | Scroll left to the beginning of the process entry (i.e. beginning of line).                |
+|                                                             `<C-e>`<br>`$` | Scroll right to the end of the process entry (i.e. end of line).                           |
+|              `<PageUp>` / `<PageDown>`<br/> `<A-K>` / `<A-J>`<br>`[` / `]` | scroll entire screen (for large amounts of processes).                                     |
+|                                                                            |                                                                                            |
+|                                                                  `<Space>` | Tag/untag current process.                                                                 |
+|                                                                    `<Esc>` | Clear process selection.                                                                   |
+|                                                             `<C-c>`<br>`I` | Send `signal.SIGINT` to the selected process (interrupt). *(disabled under `--readonly`)*  |
+|                                                                        `T` | Send `signal.SIGTERM` to the selected process (terminate). *(disabled under `--readonly`)* |
+|                                                                        `K` | Send `signal.SIGKILL` to the selected process (kill). *(disabled under `--readonly`)*      |
+|                                                                            |                                                                                            |
+|                                                                        `e` | Show process environment.                                                                  |
+|                                                                        `t` | Toggle tree-view screen.                                                                   |
+|                                                                  `<Enter>` | Show process metrics.                                                                      |
+|                                                                            |                                                                                            |
+|                                                                  `,` / `.` | Select the sort column.                                                                    |
+|                                                                        `/` | Reverse the sort order.                                                                    |
+|                                                                `on` (`oN`) | Sort processes in the natural order, i.e., in ascending (descending) order of `GPU`.       |
+|                                                                `ou` (`oU`) | Sort processes by `USER` in ascending (descending) order.                                  |
+|                                                                `op` (`oP`) | Sort processes by `PID` in descending (ascending) order.                                   |
+|                                                                `og` (`oG`) | Sort processes by `GPU-MEM` in descending (ascending) order.                               |
+|                                                                `os` (`oS`) | Sort processes by `SM%` in descending (ascending) order.                                   |
+|                                                                `oc` (`oC`) | Sort processes by `CPU%` in descending (ascending) order.                                  |
+|                                                                `om` (`oM`) | Sort processes by `MEM%` in descending (ascending) order.                                  |
+|                                                                `ot` (`oT`) | Sort processes by `TIME` in descending (ascending) order.                                  |
 
 **HINT:** It's recommended to terminate or kill a process in the tree-view screen (shortcut: <kbd>t</kbd>).
 
@@ -744,47 +761,17 @@ formatting:
 
 ------
 
-### Callback Functions for Machine Learning Frameworks (DEPRECATED)
-
-`nvitop` provides two builtin callbacks for [TensorFlow (Keras)](https://www.tensorflow.org) and [PyTorch Lightning](https://pytorchlightning.ai).
-
-#### Callback for [TensorFlow (Keras)](https://www.tensorflow.org)
-
-```python
-from tensorflow.python.keras.utils.multi_gpu_utils import multi_gpu_model
-from tensorflow.python.keras.callbacks import TensorBoard
-from nvitop.callbacks.keras import GpuStatsLogger
-gpus = ['/gpu:0', '/gpu:1']  # or `gpus = [0, 1]` or `gpus = 2`
-model = Xception(weights=None, ..)
-model = multi_gpu_model(model, gpus)  # optional
-model.compile(..)
-tb_callback = TensorBoard(log_dir='./logs')  # or `keras.callbacks.CSVLogger`
-gpu_stats = GpuStatsLogger(gpus)
-model.fit(.., callbacks=[gpu_stats, tb_callback])
-```
-
-**NOTE:** Users should assign a `keras.callbacks.TensorBoard` callback or a `keras.callbacks.CSVLogger` callback to the model. And the `GpuStatsLogger` callback should be placed before the `keras.callbacks.TensorBoard` / `keras.callbacks.CSVLogger` callback.
-
-#### Callback for [PyTorch Lightning](https://lightning.ai)
-
-```python
-from lightning.pytorch import Trainer
-from nvitop.callbacks.lightning import GpuStatsLogger
-gpu_stats = GpuStatsLogger()
-trainer = Trainer(gpus=[..], logger=True, callbacks=[gpu_stats])
-```
-
-**NOTE:** Users should assign a logger to the trainer.
-
-#### [TensorBoard](https://github.com/tensorflow/tensorboard) Integration
-
-Please refer to [Resource Metric Collector](#resource-metric-collector) for an example.
-
-------
-
 ### More than a Monitor
 
-`nvitop` can be easily integrated into other applications. You can use `nvitop` to make your own monitoring tools. The full API references host at <https://nvitop.readthedocs.io>.
+`nvitop` can be easily integrated into other applications. You can use `nvitop` to make your own monitoring tools. The full API references host at <https://nvitop.readthedocs.io>. Runnable reference scripts live in [`examples/`](./examples/).
+
+<p align="center">
+  <a href="./examples/monitor-web">
+    <img width="100%" src="https://github.com/user-attachments/assets/b07abc8a-d0f0-4d0f-a7a2-09514cd28832" alt="Web Monitor Dashboard">
+  </a>
+  <br/>
+  A browser dashboard example built on top of <code>nvitop.collect_in_background</code>.
+</p>
 
 #### Quick Start
 
@@ -813,6 +800,7 @@ for device in devices:
 
 Another more advanced approach with coloring:
 
+<!-- fmt:off -->
 ```python
 import time
 
@@ -858,6 +846,7 @@ for device in devices:
         print('-' * 120)
     separator = True
 ```
+<!-- fmt:on -->
 
 <p align="center">
   <img width="100%" src="https://user-images.githubusercontent.com/16078332/177041142-fe988d58-6a97-4559-84fd-b51204cf9231.png" alt="Demo">
@@ -1017,16 +1006,23 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from nvitop import CudaDevice, ResourceMetricCollector
-from nvitop.callbacks.tensorboard import add_scalar_dict
+
+
+def add_scalar_dict(writer, main_tag, tag_scalar_dict, global_step=None, walltime=None):
+    for tag, scalar in tag_scalar_dict.items():
+        writer.add_scalar(f'{main_tag}/{tag}', scalar, global_step=global_step, walltime=walltime)
+
 
 # Build networks and prepare datasets
 ...
 
 # Logger and status collector
 writer = SummaryWriter()
-collector = ResourceMetricCollector(devices=CudaDevice.all(),  # log all visible CUDA devices and use the CUDA ordinal
-                                    root_pids={os.getpid()},   # only log the descendant processes of the current process
-                                    interval=1.0)              # snapshot interval for background daemon thread
+collector = ResourceMetricCollector(
+    devices=CudaDevice.all(),  # log all visible CUDA devices and use the CUDA ordinal
+    root_pids={os.getpid()},  # only log the descendant processes of the current process
+    interval=1.0,  # snapshot interval for background daemon thread
+)
 
 # Start training
 global_step = 0
@@ -1037,20 +1033,29 @@ for epoch in range(num_epoch):
                 metrics = train(net, batch)
                 global_step += 1
                 add_scalar_dict(writer, 'train', metrics, global_step=global_step)
-                add_scalar_dict(writer, 'resources',      # tag='resources/train/batch/...'
-                                collector.collect(),
-                                global_step=global_step)
+                add_scalar_dict(
+                    writer,
+                    'resources',  # tag='resources/train/batch/...'
+                    collector.collect(),
+                    global_step=global_step,
+                )
 
-        add_scalar_dict(writer, 'resources',              # tag='resources/train/...'
-                        collector.collect(),
-                        global_step=epoch)
+        add_scalar_dict(
+            writer,
+            'resources',  # tag='resources/train/...'
+            collector.collect(),
+            global_step=epoch,
+        )
 
     with collector(tag='validate'):
         metrics = validate(net, validation_dataset)
         add_scalar_dict(writer, 'validate', metrics, global_step=epoch)
-        add_scalar_dict(writer, 'resources',              # tag='resources/validate/...'
-                        collector.collect(),
-                        global_step=epoch)
+        add_scalar_dict(
+            writer,
+            'resources',  # tag='resources/validate/...'
+            collector.collect(),
+            global_step=epoch,
+        )
 ```
 
 Another example for logging into a CSV file:
@@ -1063,7 +1068,8 @@ import pandas as pd
 
 from nvitop import ResourceMetricCollector
 
-collector = ResourceMetricCollector(root_pids={1}, interval=2.0)  # log all devices and all GPU processes
+# Log all devices and all GPU processes
+collector = ResourceMetricCollector(root_pids={1}, interval=2.0)
 df = pd.DataFrame()
 
 with collector(tag='resources'):
@@ -1087,15 +1093,18 @@ from nvitop import Device, ResourceMetricCollector, collect_in_background
 
 logger = ...
 
+
 def on_collect(metrics):  # will be called periodically
     if logger.is_closed():  # closed manually by user
         return False
     logger.log(metrics)
     return True
 
+
 def on_stop(collector):  # will be called only once at stop
     if not logger.is_closed():
         logger.close()  # cleanup
+
 
 # Record metrics to the logger in the background every 5 seconds.
 # It will collect 5-second mean/min/max for each metric.
@@ -1312,6 +1321,7 @@ Out[19]: MemoryInfo(total=268435456, free=257622016, used=10813440)
 
 **NOTE:** Some entry values may be `'N/A'` (type: [`NaType`](https://nvitop.readthedocs.io/en/latest/index.html#nvitop.NaType), a subclass of `str`) when the corresponding resources are not applicable. The [`NA`](https://nvitop.readthedocs.io/en/latest/index.html#nvitop.NA) value supports arithmetic operations. It acts like `math.nan: float`.
 
+<!-- fmt:off -->
 ```python
 >>> from nvitop import NA
 >>> NA
@@ -1335,20 +1345,25 @@ nan
 >>> NA / (1024 * 1024)             # auto-casting to float if the operand is a number
 nan
 ```
+<!-- fmt:on -->
 
 You can use `entry != 'N/A'` conditions to avoid exceptions. It's safe to use `float(entry)` for numbers while `NaType` will be converted to `math.nan`. For example:
 
+<!-- fmt:off -->
 ```python
 memory_used: Union[int, NaType] = device.memory_used()            # memory usage in bytes or `'N/A'`
 memory_used_in_mib: float       = float(memory_used) / (1 << 20)  # memory usage in Mebibytes (MiB) or `math.nan`
 ```
+<!-- fmt:on -->
 
 It's safe to compare `NaType` with numbers, but `NaType` is always larger than any number:
 
+<!-- fmt:off -->
 ```python
 devices_by_used_memory = sorted(Device.all(), key=Device.memory_used, reverse=True)  # it's safe to compare `'N/A'` with numbers
 devices_by_free_memory = sorted(Device.all(), key=Device.memory_free, reverse=True)  # please add `memory_free != 'N/A'` checks if sort in descending order here
 ```
+<!-- fmt:on -->
 
 See [`nvitop.NaType`](https://nvitop.readthedocs.io/en/latest/apis/index.html#nvitop.NaType) documentation for more details.
 
@@ -1377,6 +1392,7 @@ The [process module](https://nvitop.readthedocs.io/en/latest/api/process.html) p
   </tbody>
 </table>
 
+<!-- fmt:off -->
 ```python
 In [20]: processes = nvidia1.processes()  # type: Dict[int, GpuProcess]
     ...: processes
@@ -1503,9 +1519,11 @@ Out[37]: GpuProcess(pid=35783, gpu_memory=255MiB, type=C, device=CudaDevice(cuda
 In [38]: id(this) == id(GpuProcess(os.getpid(), cuda0))  # IMPORTANT: the instance will be reused while the process is running
 Out[38]: True
 ```
+<!-- fmt:on -->
 
 ##### Host (inherited from [psutil](https://github.com/giampaolo/psutil))
 
+<!-- fmt:off -->
 ```python
 In [39]: host.cpu_count()
 Out[39]: 88
@@ -1531,6 +1549,7 @@ Out[45]: sswap(total=65534947328, used=475136, free=65534472192, percent=0.0, si
 In [46]: host.swap_percent()
 Out[46]: 0.0
 ```
+<!-- fmt:on -->
 
 ------
 
@@ -1599,9 +1618,6 @@ nvitop           (GPL-3.0)
 ├── api          (Apache-2.0)
 │   ├── LICENSE  (Apache-2.0)
 │   └── *        (Apache-2.0)
-├── callbacks    (Apache-2.0)
-│   ├── LICENSE  (Apache-2.0)
-│   └── *        (Apache-2.0)
 ├── select.py    (Apache-2.0)
 ├── __main__.py  (GPL-3.0)
 ├── cli.py       (GPL-3.0)
@@ -1624,7 +1640,7 @@ from nvitop.api import *
 from nvitop import Device, ResourceMetricCollector
 ```
 
-The public APIs from `nvitop` are released under the **Apache License, Version 2.0 (Apache-2.0)**. The original license files can be found at [LICENSE](https://github.com/XuehaiPan/nvitop/blob/HEAD/LICENSE), [nvitop/api/LICENSE](https://github.com/XuehaiPan/nvitop/blob/HEAD/nvitop/api/LICENSE), and [nvitop/callbacks/LICENSE](https://github.com/XuehaiPan/nvitop/blob/HEAD/nvitop/callbacks/LICENSE).
+The public APIs from `nvitop` are released under the **Apache License, Version 2.0 (Apache-2.0)**. The original license files can be found at [LICENSE](https://github.com/XuehaiPan/nvitop/blob/HEAD/LICENSE), [nvitop/api/LICENSE](https://github.com/XuehaiPan/nvitop/blob/HEAD/nvitop/api/LICENSE).
 
 The CLI of `nvitop` is released under the **GNU General Public License, Version 3 (GPL-3.0)**. The original license files can be found at [COPYING](https://github.com/XuehaiPan/nvitop/blob/HEAD/COPYING) and [nvitop/tui/COPYING](https://github.com/XuehaiPan/nvitop/blob/HEAD/nvitop/tui/COPYING). If you dynamically load the source code of `nvitop`'s CLI or TUI:
 

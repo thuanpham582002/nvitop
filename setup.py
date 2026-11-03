@@ -73,6 +73,9 @@ def vcs_version(name: str, path: Path | str) -> Generator[ModuleType]:
 
 if __name__ == '__main__':
     extra_requirements = {
+        'exporter': ['nvitop-exporter'],
+        'prometheus': ['nvitop-exporter'],
+        'kubernetes': ['kubernetes >= 28.0.0, < 35.0.0'],
         'lint': [
             'ruff',
             'pylint[spelling]',

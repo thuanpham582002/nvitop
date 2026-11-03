@@ -1,6 +1,6 @@
 # This file is part of nvitop, the interactive NVIDIA-GPU process viewer.
 #
-# Copyright 2021-2025 Xuehai Pan. All Rights Reserved.
+# Copyright 2021-2026 Xuehai Pan. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 """The live classes for GPU devices.
 
 The core classes are :class:`Device` and :class:`CudaDevice` (also aliased as :attr:`Device.cuda`).
-The type of returned instance created by ``Class(args)`` is depending on the given arguments.
+The type of the returned instance created by ``Class(args)`` depends on the given arguments.
 
 ``Device()`` returns:
 
@@ -59,10 +59,10 @@ Examples:
 
     >>> nvidia0.memory_free()                # total free memory in bytes
     11550654464
-    >>> nvidia0.memory_free_human()          # total free memory in human readable format
+    >>> nvidia0.memory_free_human()          # total free memory in human-readable format
     '11016MiB'
 
-    >>> nvidia2.as_snapshot()                # takes an onetime snapshot of the device
+    >>> nvidia2.as_snapshot()                # takes a one-time snapshot of the device
     PhysicalDeviceSnapshot(
         real=PhysicalDevice(index=2, ...),
         ...
@@ -90,10 +90,10 @@ Examples:
 
     >>> cuda0.memory_free()                    # total free memory in bytes
     11550654464
-    >>> cuda0.memory_free_human()              # total free memory in human readable format
+    >>> cuda0.memory_free_human()              # total free memory in human-readable format
     '11016MiB'
 
-    >>> cuda1.as_snapshot()                    # takes an onetime snapshot of the device
+    >>> cuda1.as_snapshot()                    # takes a one-time snapshot of the device
     CudaDeviceSnapshot(
         real=CudaDevice(cuda_index=1, nvml_index=2, ...),
         ...
@@ -117,7 +117,7 @@ import time
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, NamedTuple, overload
 
-from nvitop.api import libcuda, libcudart, libnvml
+from nvitop.api import host, libcuda, libcudart, libnvml
 from nvitop.api.process import GpuProcess
 from nvitop.api.utils import (
     NA,
@@ -148,32 +148,74 @@ __all__ = [
 # Class definitions ################################################################################
 
 
-class MemoryInfo(NamedTuple):  # in bytes # pylint: disable=missing-class-docstring
+class MemoryInfo(NamedTuple):  # in bytes
+    """Device memory information in bytes.
+
+    Attributes:
+        total: Total device memory.
+        free: Unallocated device memory.
+        used: Allocated device memory.
+        reserved: Memory reserved for system use (default: NA).
+    """
+
     total: int | NaType
     free: int | NaType
     used: int | NaType
+    reserved: int | NaType = NA
 
 
-class ClockInfos(NamedTuple):  # in MHz # pylint: disable=missing-class-docstring
+class ClockInfos(NamedTuple):  # in MHz
+    """Clock speeds information in MHz.
+
+    Attributes:
+        graphics: Graphics clock speed.
+        sm: SM (streaming multiprocessor) clock speed.
+        memory: Memory clock speed.
+        video: Video encoder/decoder clock speed.
+    """
+
     graphics: int | NaType
     sm: int | NaType
     memory: int | NaType
     video: int | NaType
 
 
-class ClockSpeedInfos(NamedTuple):  # pylint: disable=missing-class-docstring
+class ClockSpeedInfos(NamedTuple):
+    """Clock speeds information in MHz.
+
+    Attributes:
+        current: Current clock speeds.
+        max: Maximum clock speeds.
+    """
+
     current: ClockInfos
     max: ClockInfos
 
 
-class UtilizationRates(NamedTuple):  # in percentage # pylint: disable=missing-class-docstring
+class UtilizationRates(NamedTuple):  # in percentage
+    """Utilization rates in percentage.
+
+    Attributes:
+        gpu: Percent of time over the past sample period during which one or more kernels was executing on the GPU.
+        memory: Percent of time over the past sample period during which global (device) memory was being read or written.
+        encoder: Video encoder utilization rate.
+        decoder: Video decoder utilization rate.
+    """  # pylint: disable=line-too-long
+
     gpu: int | NaType
     memory: int | NaType
     encoder: int | NaType
     decoder: int | NaType
 
 
-class ThroughputInfo(NamedTuple):  # in KiB/s # pylint: disable=missing-class-docstring
+class ThroughputInfo(NamedTuple):  # in KiB/s
+    """Throughput information in KiB/s.
+
+    Attributes:
+        tx: Transmit throughput in KiB/s.
+        rx: Receive throughput in KiB/s.
+    """
+
     tx: int | NaType
     rx: int | NaType
 
@@ -231,10 +273,10 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         >>> nvidia0.memory_free()                # total free memory in bytes
         11550654464
-        >>> nvidia0.memory_free_human()          # total free memory in human readable format
+        >>> nvidia0.memory_free_human()          # total free memory in human-readable format
         '11016MiB'
 
-        >>> nvidia2.as_snapshot()                # takes an onetime snapshot of the device
+        >>> nvidia2.as_snapshot()                # takes a one-time snapshot of the device
         PhysicalDeviceSnapshot(
             real=PhysicalDevice(index=2, ...),
             ...
@@ -255,7 +297,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         TypeError:
             If the number of non-None arguments is not exactly 1.
         TypeError:
-            If the given index is a tuple but is not consist of two integers.
+            If the given index is a tuple but does not consist of two integers.
     """
 
     # https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
@@ -507,7 +549,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     ) -> list[int] | list[tuple[int, int]]:
         """Parse the given ``CUDA_VISIBLE_DEVICES`` value into a list of NVML device indices.
 
-        This is a alias of :func:`parse_cuda_visible_devices`.
+        This is an alias of :func:`parse_cuda_visible_devices`.
 
         Note:
             The result could be empty if the ``CUDA_VISIBLE_DEVICES`` environment variable is invalid.
@@ -570,7 +612,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             - (uuid: str)         -> Union[PhysicalDevice, MigDevice]  # depending on the UUID value
             - (bus_id: str)       -> PhysicalDevice
 
-        Note: This method takes exact 1 non-None argument.
+        Note: This method takes exactly 1 non-None argument.
 
         Returns: Union[PhysicalDevice, MigDevice]
             A :class:`PhysicalDevice` instance or a :class:`MigDevice` instance.
@@ -579,7 +621,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             TypeError:
                 If the number of non-None arguments is not exactly 1.
             TypeError:
-                If the given index is a tuple but is not consist of two integers.
+                If the given index is a tuple but does not consist of two integers.
         """
         if (index, uuid, bus_id).count(None) != 2:
             raise TypeError(
@@ -791,7 +833,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             setattr(self, name, attribute)
             return attribute
 
-    def __reduce__(self) -> tuple[type[Device], tuple[int | tuple[int, int]]]:
+    def __reduce__(self) -> tuple[type[Self], tuple[int | tuple[int, int]]]:
         """Return state information for pickling."""
         return self.__class__, (self._nvml_index,)
 
@@ -898,7 +940,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """
         if self._handle is not None and self._bus_id is NA:
             self._bus_id = libnvml.nvmlQuery(
-                lambda handle: libnvml.nvmlDeviceGetPciInfo(handle).busId,
+                lambda handle: libnvml.nvmlDeviceGetPciInfo(handle).busId,  # type: ignore[attr-defined]
                 self._handle,
             )
         return self._bus_id
@@ -925,18 +967,49 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def memory_info(self) -> MemoryInfo:  # in bytes
         """Return a named tuple with memory information (in bytes) for the device.
 
-        Returns: MemoryInfo(total, free, used)
+        On devices with unified memory, such as ``NVIDIA GB10 (DGX Spark)`` and ``RTX Spark N1X``,
+        the fallback reports shared system memory, not GPU-only allocations. Free memory is system
+        available memory, including reclaimable cache. Used memory is total minus available memory.
+
+        Returns: MemoryInfo(total, free, used, reserved)
             A named tuple with memory information, the item could be :const:`nvitop.NA` when not applicable.
         """
         if self._handle is not None:
-            memory_info = libnvml.nvmlQuery('nvmlDeviceGetMemoryInfo', self._handle)
-            if libnvml.nvmlCheckReturn(memory_info):
-                return MemoryInfo(
-                    total=memory_info.total,
-                    free=memory_info.free,
-                    used=memory_info.used,
+            has_unified_memory = False
+            try:
+                memory_info = libnvml.nvmlQuery(
+                    'nvmlDeviceGetMemoryInfo',
+                    self._handle,
+                    ignore_errors=False,
                 )
-        return MemoryInfo(total=NA, free=NA, used=NA)
+            except libnvml.NVMLError_NotSupported:
+                has_unified_memory = True
+                memory_info = NA
+            except libnvml.NVMLError:
+                memory_info = NA
+            if libnvml.nvmlCheckReturn(memory_info):
+                assert not isinstance(memory_info, NaType)
+                if memory_info.total > 0:
+                    return MemoryInfo(
+                        total=memory_info.total,
+                        free=memory_info.free,
+                        used=memory_info.used,
+                        reserved=getattr(memory_info, 'reserved', NA),
+                    )
+                has_unified_memory = True
+            if has_unified_memory:
+                # Device with unified memory
+                # Use system virtual memory as these devices share host memory
+                vm = host.virtual_memory()
+                return MemoryInfo(
+                    total=vm.total,
+                    # `vm.free` excludes reclaimable cache
+                    free=vm.available,
+                    # `vm.used` uses platform-specific accounting and may include reclaimable cache
+                    used=max(0, vm.total - vm.available),
+                    reserved=NA,
+                )
+        return MemoryInfo(total=NA, free=NA, used=NA, reserved=NA)
 
     def memory_total(self) -> int | NaType:  # in bytes
         """Total installed GPU memory in bytes.
@@ -982,29 +1055,29 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """
         return self.memory_info().free
 
-    def memory_total_human(self) -> str | NaType:  # in human readable
-        """Total installed GPU memory in human readable format.
+    def memory_total_human(self) -> str | NaType:  # in human-readable
+        """Total installed GPU memory in human-readable format.
 
         Returns: Union[str, NaType]
-            Total installed GPU memory in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total installed GPU memory in human-readable format, or :const:`nvitop.NA` when not applicable.
         """
         if self._memory_total_human is NA:
             self._memory_total_human = bytes2human(self.memory_total())
         return self._memory_total_human
 
-    def memory_used_human(self) -> str | NaType:  # in human readable
-        """Total memory allocated by active contexts in human readable format.
+    def memory_used_human(self) -> str | NaType:  # in human-readable
+        """Total memory allocated by active contexts in human-readable format.
 
         Returns: Union[int, NaType]
-            Total memory allocated by active contexts in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total memory allocated by active contexts in human-readable format, or :const:`nvitop.NA` when not applicable.
         """  # pylint: disable=line-too-long
         return bytes2human(self.memory_used())
 
-    def memory_free_human(self) -> str | NaType:  # in human readable
-        """Total free memory in human readable format.
+    def memory_free_human(self) -> str | NaType:  # in human-readable
+        """Total free memory in human-readable format.
 
         Returns: Union[int, NaType]
-            Total free memory in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total free memory in human-readable format, or :const:`nvitop.NA` when not applicable.
         """
         return bytes2human(self.memory_free())
 
@@ -1014,16 +1087,16 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         Returns: Union[float, NaType]
             The percentage of used memory over total memory, or :const:`nvitop.NA` when not applicable.
         """
-        total, _, used = self.memory_info()
-        if libnvml.nvmlCheckReturn(used, int) and libnvml.nvmlCheckReturn(total, int):
+        total, _, used, _ = self.memory_info()
+        if libnvml.nvmlCheckReturn(used, int) and libnvml.nvmlCheckReturn(total, int) and total > 0:
             return round(100.0 * used / total, 1)
         return NA
 
-    def memory_usage(self) -> str:  # string of used memory over total memory (in human readable)
-        """The used memory over total memory in human readable format.
+    def memory_usage(self) -> str:  # string of used memory over total memory (in human-readable)
+        """The used memory over total memory in human-readable format.
 
         Returns: str
-            The used memory over total memory in human readable format, or :const:`'N/A / N/A'` when not applicable.
+            The used memory over total memory in human-readable format, or :const:`'N/A / N/A'` when not applicable.
         """  # pylint: disable=line-too-long
         return f'{self.memory_used_human()} / {self.memory_total_human()}'
 
@@ -1068,27 +1141,27 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """
         return self.bar1_memory_info().free
 
-    def bar1_memory_total_human(self) -> str | NaType:  # in human readable
-        """Total BAR1 memory in human readable format.
+    def bar1_memory_total_human(self) -> str | NaType:  # in human-readable
+        """Total BAR1 memory in human-readable format.
 
         Returns: Union[int, NaType]
-            Total BAR1 memory in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total BAR1 memory in human-readable format, or :const:`nvitop.NA` when not applicable.
         """
         return bytes2human(self.bar1_memory_total())
 
-    def bar1_memory_used_human(self) -> str | NaType:  # in human readable
-        """Total used BAR1 memory in human readable format.
+    def bar1_memory_used_human(self) -> str | NaType:  # in human-readable
+        """Total used BAR1 memory in human-readable format.
 
         Returns: Union[int, NaType]
-            Total used BAR1 memory in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total used BAR1 memory in human-readable format, or :const:`nvitop.NA` when not applicable.
         """
         return bytes2human(self.bar1_memory_used())
 
-    def bar1_memory_free_human(self) -> str | NaType:  # in human readable
-        """Total free BAR1 memory in human readable format.
+    def bar1_memory_free_human(self) -> str | NaType:  # in human-readable
+        """Total free BAR1 memory in human-readable format.
 
         Returns: Union[int, NaType]
-            Total free BAR1 memory in human readable format, or :const:`nvitop.NA` when not applicable.
+            Total free BAR1 memory in human-readable format, or :const:`nvitop.NA` when not applicable.
         """
         return bytes2human(self.bar1_memory_free())
 
@@ -1098,16 +1171,16 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         Returns: Union[float, NaType]
             The percentage of used BAR1 memory over total BAR1 memory, or :const:`nvitop.NA` when not applicable.
         """  # pylint: disable=line-too-long
-        total, _, used = self.bar1_memory_info()
-        if libnvml.nvmlCheckReturn(used, int) and libnvml.nvmlCheckReturn(total, int):
+        total, _, used, _ = self.bar1_memory_info()
+        if libnvml.nvmlCheckReturn(used, int) and libnvml.nvmlCheckReturn(total, int) and total > 0:
             return round(100.0 * used / total, 1)
         return NA
 
-    def bar1_memory_usage(self) -> str:  # in human readable
-        """The used BAR1 memory over total BAR1 memory in human readable format.
+    def bar1_memory_usage(self) -> str:  # in human-readable
+        """The used BAR1 memory over total BAR1 memory in human-readable format.
 
         Returns: str
-            The used BAR1 memory over total BAR1 memory in human readable format, or :const:`'N/A / N/A'` when not applicable.
+            The used BAR1 memory over total BAR1 memory in human-readable format, or :const:`'N/A / N/A'` when not applicable.
         """  # pylint: disable=line-too-long
         return f'{self.bar1_memory_used_human()} / {self.bar1_memory_total_human()}'
 
@@ -1170,18 +1243,18 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return self.utilization_rates().memory
 
     def encoder_utilization(self) -> int | NaType:  # in percentage
-        """The encoder utilization rate  in percentage.
+        """The encoder utilization rate in percentage.
 
         Returns: Union[int, NaType]
-            The encoder utilization rate  in percentage, or :const:`nvitop.NA` when not applicable.
+            The encoder utilization rate in percentage, or :const:`nvitop.NA` when not applicable.
         """
         return self.utilization_rates().encoder
 
     def decoder_utilization(self) -> int | NaType:  # in percentage
-        """The decoder utilization rate  in percentage.
+        """The decoder utilization rate in percentage.
 
         Returns: Union[int, NaType]
-            The decoder utilization rate  in percentage, or :const:`nvitop.NA` when not applicable.
+            The decoder utilization rate in percentage, or :const:`nvitop.NA` when not applicable.
         """
         return self.utilization_rates().decoder
 
@@ -1459,9 +1532,9 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         power_usage = self.power_usage()
         power_limit = self.power_limit()
         if libnvml.nvmlCheckReturn(power_usage, int):
-            power_usage = f'{round(power_usage / 1000)}W'  # type: ignore[assignment]
+            power_usage = f'{round(power_usage / 1000)}W'
         if libnvml.nvmlCheckReturn(power_limit, int):
-            power_limit = f'{round(power_limit / 1000)}W'  # type: ignore[assignment]
+            power_limit = f'{round(power_limit / 1000)}W'
         return f'{power_usage} / {power_limit}'
 
     def pcie_throughput(self) -> ThroughputInfo:  # in KiB/s
@@ -1512,14 +1585,14 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             )
         return NA
 
-    def pcie_tx_throughput_human(self) -> str | NaType:  # in human readable
-        """The current PCIe transmit throughput in human readable format.
+    def pcie_tx_throughput_human(self) -> str | NaType:  # in human-readable
+        """The current PCIe transmit throughput in human-readable format.
 
         This function is querying a byte counter over a 20ms interval and thus is the PCIe
         throughput over that interval.
 
         Returns: Union[str, NaType]
-            The current PCIe transmit throughput in human readable format, or :const:`nvitop.NA`
+            The current PCIe transmit throughput in human-readable format, or :const:`nvitop.NA`
             when not applicable.
         """
         tx = self.pcie_tx_throughput()
@@ -1527,14 +1600,14 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return f'{bytes2human(tx * 1024)}/s'
         return NA
 
-    def pcie_rx_throughput_human(self) -> str | NaType:  # in human readable
-        """The current PCIe receive throughput in human readable format.
+    def pcie_rx_throughput_human(self) -> str | NaType:  # in human-readable
+        """The current PCIe receive throughput in human-readable format.
 
         This function is querying a byte counter over a 20ms interval and thus is the PCIe
         throughput over that interval.
 
         Returns: Union[str, NaType]
-            The current PCIe receive throughput in human readable format, or :const:`nvitop.NA` when
+            The current PCIe receive throughput in human-readable format, or :const:`nvitop.NA` when
             not applicable.
         """
         rx = self.pcie_rx_throughput()
@@ -1822,8 +1895,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_tx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> list[str | NaType]:  # in human readable
-        """The current NVLink transmit data throughput for each NVLink in human readable format.
+    ) -> list[str | NaType]:  # in human-readable
+        """The current NVLink transmit data throughput for each NVLink in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1837,7 +1910,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The current NVLink transmit data throughput for each NVLink in human readable format, or
+            The current NVLink transmit data throughput for each NVLink in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         return [
@@ -1848,8 +1921,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_mean_tx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> str | NaType:  # in human readable
-        """The mean NVLink transmit data throughput for all NVLinks in human readable format.
+    ) -> str | NaType:  # in human-readable
+        """The mean NVLink transmit data throughput for all NVLinks in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1863,7 +1936,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The mean NVLink transmit data throughput for all NVLinks in human readable format, or
+            The mean NVLink transmit data throughput for all NVLinks in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         mean_tx = self.nvlink_mean_tx_throughput(interval=interval)
@@ -1874,8 +1947,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_total_tx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> str | NaType:  # in human readable
-        """The total NVLink transmit data throughput for all NVLinks in human readable format.
+    ) -> str | NaType:  # in human-readable
+        """The total NVLink transmit data throughput for all NVLinks in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1889,7 +1962,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The total NVLink transmit data throughput for all NVLinks in human readable format, or
+            The total NVLink transmit data throughput for all NVLinks in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         total_tx = self.nvlink_total_tx_throughput(interval=interval)
@@ -1900,8 +1973,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_rx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> list[str | NaType]:  # in human readable
-        """The current NVLink receive data throughput for each NVLink in human readable format.
+    ) -> list[str | NaType]:  # in human-readable
+        """The current NVLink receive data throughput for each NVLink in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1915,7 +1988,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The current NVLink receive data throughput for each NVLink in human readable format, or
+            The current NVLink receive data throughput for each NVLink in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         return [
@@ -1926,8 +1999,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_mean_rx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> str | NaType:  # in human readable
-        """The mean NVLink receive data throughput for all NVLinks in human readable format.
+    ) -> str | NaType:  # in human-readable
+        """The mean NVLink receive data throughput for all NVLinks in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1941,7 +2014,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The mean NVLink receive data throughput for all NVLinks in human readable format, or
+            The mean NVLink receive data throughput for all NVLinks in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         mean_rx = self.nvlink_mean_rx_throughput(interval=interval)
@@ -1952,8 +2025,8 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def nvlink_total_rx_throughput_human(
         self,
         interval: float | None = None,
-    ) -> str | NaType:  # in human readable
-        """The total NVLink receive data throughput for all NVLinks in human readable format.
+    ) -> str | NaType:  # in human-readable
+        """The total NVLink receive data throughput for all NVLinks in human-readable format.
 
         This function is querying data counters between methods calls and thus is the NVLink
         throughput over that interval. For the first call, the function is blocking for 20ms to get
@@ -1967,7 +2040,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 throughput counters since the last call, returning immediately (non-blocking).
 
         Returns: Union[str, NaType]
-            The total NVLink receive data throughput for all NVLinks in human readable format, or
+            The total NVLink receive data throughput for all NVLinks in human-readable format, or
             :const:`nvitop.NA` when not applicable.
         """
         total_rx = self.nvlink_total_rx_throughput(interval=interval)
@@ -2046,6 +2119,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return {
                 libnvml.NVML_DRIVER_WDDM: 'WDDM',
                 libnvml.NVML_DRIVER_WDM: 'WDM',
+                libnvml.NVML_DRIVER_MCDM: 'MCDM',
             }.get(libnvml.nvmlQuery('nvmlDeviceGetCurrentDriverModel', self._handle), NA)
         return NA
 
@@ -2266,7 +2340,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 else:
                     # Used GPU memory is `N/A` on Windows Display Driver Model (WDDM)
                     # or on MIG-enabled GPUs
-                    gpu_memory = NA  # type: ignore[assignment]
+                    gpu_memory = NA
                     found_na = True
                 proc = processes[p.pid] = self.GPU_PROCESS_CLASS(
                     pid=p.pid,
@@ -2299,7 +2373,7 @@ class Device:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return processes
 
     def as_snapshot(self) -> Snapshot:
-        """Return a onetime snapshot of the device.
+        """Return a one-time snapshot of the device.
 
         The attributes are defined in :attr:`SNAPSHOT_KEYS`.
         """
@@ -2669,7 +2743,7 @@ class MigDevice(Device):  # pylint: disable=too-many-instance-attributes
         return self._compute_instance_id
 
     def as_snapshot(self) -> Snapshot:
-        """Return a onetime snapshot of the device.
+        """Return a one-time snapshot of the device.
 
         The attributes are defined in :attr:`SNAPSHOT_KEYS`.
         """
@@ -2725,10 +2799,10 @@ class CudaDevice(Device):
 
         >>> cuda0.memory_free()                    # total free memory in bytes
         11550654464
-        >>> cuda0.memory_free_human()              # total free memory in human readable format
+        >>> cuda0.memory_free_human()              # total free memory in human-readable format
         '11016MiB'
 
-        >>> cuda1.as_snapshot()                    # takes an onetime snapshot of the device
+        >>> cuda1.as_snapshot()                    # takes a one-time snapshot of the device
         CudaDeviceSnapshot(
             real=CudaDevice(cuda_index=1, nvml_index=2, ...),
             ...
@@ -2749,7 +2823,7 @@ class CudaDevice(Device):
         TypeError:
             If the number of non-None arguments is not exactly 1.
         TypeError:
-            If the given NVML index is a tuple but is not consist of two integers.
+            If the given NVML index is a tuple but does not consist of two integers.
         RuntimeError:
             If the index is out of range for the given ``CUDA_VISIBLE_DEVICES`` environment variable.
     """  # pylint: disable=line-too-long
@@ -2831,7 +2905,7 @@ class CudaDevice(Device):
             - (nvml_index: int)        -> CudaDevice
             - (nvml_index: (int, int)) -> CudaMigDevice
 
-        Note: This method takes exact 1 non-None argument.
+        Note: This method takes exactly 1 non-None argument.
 
         Returns: Union[CudaDevice, CudaMigDevice]
             A :class:`CudaDevice` instance or a :class:`CudaMigDevice` instance.
@@ -2840,7 +2914,7 @@ class CudaDevice(Device):
             TypeError:
                 If the number of non-None arguments is not exactly 1.
             TypeError:
-                If the given NVML index is a tuple but is not consist of two integers.
+                If the given NVML index is a tuple but does not consist of two integers.
             RuntimeError:
                 If the index is out of range for the given ``CUDA_VISIBLE_DEVICES`` environment variable.
         """
@@ -2914,12 +2988,12 @@ class CudaDevice(Device):
             self.memory_total_human(),
         )
 
-    def __reduce__(self) -> tuple[type[CudaDevice], tuple[int]]:
+    def __reduce__(self) -> tuple[type[Self], tuple[int]]:
         """Return state information for pickling."""
         return self.__class__, (self._cuda_index,)
 
     def as_snapshot(self) -> Snapshot:
-        """Return a onetime snapshot of the device.
+        """Return a one-time snapshot of the device.
 
         The attributes are defined in :attr:`SNAPSHOT_KEYS`.
         """
@@ -3180,12 +3254,15 @@ def _parse_cuda_visible_devices(  # pylint: disable=too-many-branches,too-many-s
                         """,
                     ),
                 ],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding='utf-8',
+                timeout=120.0,
             )
-            .decode('utf-8', errors='replace')
             .strip()
             .split(',')
         )
-    except subprocess.CalledProcessError:
+    except subprocess.SubprocessError:
         pass
     else:
         uuids = [

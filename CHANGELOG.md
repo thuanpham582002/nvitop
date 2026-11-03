@@ -17,15 +17,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
--
+- Use percentage suffixes in TUI and Grafana column headers, such as `CPU%` and `GMBW%` rather than `%CPU` and `%GMBW`.
 
 ### Fixed
 
--
+- Reduce spurious zero CPU utilization readings in the process-metrics screen and treeview by [@arinawang11](https://github.com/arinawang11) in [#237](https://github.com/XuehaiPan/nvitop/pull/237).
 
 ### Removed
 
 -
+
+------
+
+## [1.7.2] - 2026-10-26
+
+### Added
+
+- Add `nvidia-ml-py` 13.610.43 to support list by [@XuehaiPan](https://github.com/XuehaiPan).
+- Add `nvidia-ml-py` 13.615.71 to support list by [@XuehaiPan](https://github.com/XuehaiPan).
+- Add a responsive Rich GPU dashboard example with host metrics, MIG support, and GPU process snapshots by [@XuehaiPan](https://github.com/XuehaiPan) in [#231](https://github.com/XuehaiPan/nvitop/pull/231).
+
+### Fixed
+
+- Guard NVML field queries against a buffer overrun in NVIDIA driver 595.91.07 that can crash `nvitop-exporter` while collecting NVLink throughput by [@XuehaiPan](https://github.com/XuehaiPan) in [#232](https://github.com/XuehaiPan/nvitop/pull/232).
+- Fix shared-memory accounting on unified-memory devices (e.g., NVIDIA DGX Spark and RTX Spark N1X) to include reclaimable cache in free memory and calculate used memory from available capacity by [@johnnynunez](https://github.com/johnnynunez) in [#234](https://github.com/XuehaiPan/nvitop/pull/234).
+
+------
+
+## [1.7.1] - 2026-07-10
+
+### Added
+
+- Add a minimal stdlib HTTP(S) GPU dashboard built on `nvitop.collect_in_background` by [@XuehaiPan](https://github.com/XuehaiPan) in [#218](https://github.com/XuehaiPan/nvitop/pull/218).
+- Add inline script metadata (PEP 723) to the runnable `examples/` scripts so each runs directly from its URL with `uv run` without cloning the repository by [@XuehaiPan](https://github.com/XuehaiPan) in [#224](https://github.com/XuehaiPan/nvitop/pull/224).
+
+### Fixed
+
+- Fix an intermittent `SIGSEGV` at interpreter exit where the `atexit` `nvmlShutdown()` raced in-flight NVML queries from background threads by [@XuehaiPan](https://github.com/XuehaiPan) in [#223](https://github.com/XuehaiPan/nvitop/pull/223). Issued by [@zengchang233](https://github.com/zengchang233) in [#222](https://github.com/XuehaiPan/nvitop/issues/222).
+
+------
+
+## [1.7.0] - 2026-05-16
+
+### Added
+
+- Add `nvidia-ml-py` 13.595.45 to support list by [@XuehaiPan](https://github.com/XuehaiPan).
+- Add support for open kernel-module driver packages (e.g., `nvidia-driver-595-open`) in `install-nvidia-driver.sh` with new `--proprietary` and `--open` flags by [@XuehaiPan](https://github.com/XuehaiPan).
+- Add TLS and mutual TLS (mTLS) support for `nvitop-exporter` via new `--certfile`, `--keyfile`, `--client-cafile`, `--client-capath`, and `--client-auth-required` CLI flags by [@XuehaiPan](https://github.com/XuehaiPan) in [#213](https://github.com/XuehaiPan/nvitop/pull/213). Issued by [@StefanSander3](https://github.com/StefanSander3) in [#131](https://github.com/XuehaiPan/nvitop/issues/131).
+- Add `--readonly` CLI flag (and equivalent `NVITOP_MONITOR_MODE="readonly"` env token) for monitor mode that disables all process-mutating shortcuts (`Ctrl-c` / `T` / `K` / `I` / `k`) by [@XuehaiPan](https://github.com/XuehaiPan) in [#214](https://github.com/XuehaiPan/nvitop/pull/214).
+- Add `examples/` directory with self-contained runnable scripts by [@XuehaiPan](https://github.com/XuehaiPan) in [#216](https://github.com/XuehaiPan/nvitop/pull/216).
+
+### Changed
+
+- Bump minimum `prometheus-client` version to `0.19.0` for `nvitop-exporter` (required for TLS support) by [@XuehaiPan](https://github.com/XuehaiPan) in [#213](https://github.com/XuehaiPan/nvitop/pull/213).
+
+### Fixed
+
+- Propagate `need_redraw=True` to parent if `self.need_redraw` has been already updated to `True` to avoid missing redraws by [@XuehaiPan](https://github.com/XuehaiPan).
+
+### Removed
+
+- Relocate the `nvitop.callbacks` subpackage (Keras / Lightning / TensorBoard `GpuStatsLogger` and `add_scalar_dict`) to [`examples/ml-framework-callbacks/`](./examples/ml-framework-callbacks/) by [@XuehaiPan](https://github.com/XuehaiPan) in [#216](https://github.com/XuehaiPan/nvitop/pull/216).
+
+------
+
+## [1.6.2] - 2026-01-28
+
+### Added
+
+- Add `nvidia-ml-py` 13.580.126 and 13.590.44 and 13.590.48 to support list by [@XuehaiPan](https://github.com/XuehaiPan).
+
+### Fixed
+
+- Fix TUI column alignment for device with power limit >= 1000W by [@XuehaiPan](https://github.com/XuehaiPan).
+- Fix grammar and typos in documentation by [@XuehaiPan](https://github.com/XuehaiPan).
+
+------
+
+## [1.6.1] - 2025-12-08
+
+### Added
+
+- Support devices with unified memory (e.g., NVIDIA Spark) by [@XuehaiPan](https://github.com/XuehaiPan) in [#195](https://github.com/XuehaiPan/nvitop/pull/195). Issued by [@FlorinAndrei](https://github.com/FlorinAndrei).
 
 ------
 
@@ -87,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Show `%GMBW` in main screen by [@XuehaiPan](https://github.com/XuehaiPan) in [#156](https://github.com/XuehaiPan/nvitop/pull/156).
+- Show `GMBW%` in main screen by [@XuehaiPan](https://github.com/XuehaiPan) in [#156](https://github.com/XuehaiPan/nvitop/pull/156).
 - Add doctests and add type annotations in `nvitop.tui` by [@XuehaiPan](https://github.com/XuehaiPan) in [#164](https://github.com/XuehaiPan/nvitop/pull/164).
 
 ### Changed
@@ -238,7 +311,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ------
 
-[Unreleased]: https://github.com/XuehaiPan/nvitop/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/XuehaiPan/nvitop/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/XuehaiPan/nvitop/compare/v1.7.1...v1.7.2
+[1.7.1]: https://github.com/XuehaiPan/nvitop/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/XuehaiPan/nvitop/compare/v1.6.2...v1.7.0
+[1.6.2]: https://github.com/XuehaiPan/nvitop/compare/v1.6.1...v1.6.2
+[1.6.1]: https://github.com/XuehaiPan/nvitop/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/XuehaiPan/nvitop/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/XuehaiPan/nvitop/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/XuehaiPan/nvitop/compare/v1.5.1...v1.5.2

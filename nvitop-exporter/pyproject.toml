@@ -34,6 +34,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Environment :: GPU",
@@ -48,10 +49,14 @@ classifiers = [
 ]
 dependencies = [
     # Sync with nvitop/version.py and requirements.txt
-    "nvitop ~= 1.6.0",
-    "prometheus-client >= 0.4.0",
+    "nvitop ~= 1.7.2",
+    "prometheus-client >= 0.19.0",
 ]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+# Pod / container attribution for processes (nvitop.api.kubernetes)
+kubernetes = ["kubernetes >= 28.0.0, < 35.0.0"]
 
 [project.scripts]
 nvitop-exporter = "nvitop_exporter.cli:main"
